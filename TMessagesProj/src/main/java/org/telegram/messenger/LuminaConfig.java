@@ -85,6 +85,12 @@ public class LuminaConfig {
     // Default OFF so enabling the fork never silently changes an existing user's chat list.
     public static boolean strangerInbox;
 
+    // ---- Update channel (Wave) ----
+    // When ON the in-app self-updater polls the BETA manifest (version-beta.json) and
+    // auto-updates to test builds; when OFF it polls the STABLE manifest (version.json)
+    // and only sees promoted builds. Default OFF so existing users stay on stable.
+    public static boolean betaChannel;
+
     static {
         loadConfig();
     }
@@ -117,6 +123,7 @@ public class LuminaConfig {
                 explainMessage = preferences.getBoolean("explainMessage", true);
                 reverseVoice = preferences.getBoolean("reverseVoice", false);
                 strangerInbox = preferences.getBoolean("strangerInbox", false);
+                betaChannel = preferences.getBoolean("betaChannel", false);
 
                 configLoaded = true;
             } catch (Throwable e) {
@@ -716,6 +723,14 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("strangerInbox", strangerInbox ^= true).apply();
+    }
+
+    /** Persist the beta update-channel switch (default OFF = stable channel). */
+    public static void toggleBetaChannel() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("betaChannel", betaChannel ^= true).apply();
     }
 
     public static void toggleTranslateBeforeSend() {

@@ -88,6 +88,8 @@ public class LuminaGramSettingsActivity extends BaseFragment {
         items.add(UItem.asButton(25, LuminaLocale.getString(R.string.LuminaVoiceToTextTitle)));
         items.add(UItem.asButton(26, LuminaLocale.getString(R.string.LuminaChangelogTitle)));
         items.add(UItem.asShadow(null));
+        items.add(UItem.asSwitch(30, LuminaLocale.getString(R.string.LuminaBetaChannel)).setChecked(LuminaConfig.betaChannel));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaBetaChannelInfo)));
         items.add(UItem.asButton(20, LuminaLocale.getString(R.string.LuminaCheckUpdate)));
         items.add(UItem.asShadow(null));
     }
@@ -165,6 +167,9 @@ public class LuminaGramSettingsActivity extends BaseFragment {
             case 26:
                 presentFragment(new LuminaChangelogActivity());
                 LuminaChangelogActivity.markCurrentVersionSeen();
+                break;
+            case 30:
+                LuminaConfig.toggleBetaChannel();
                 break;
             case 20:
                 LaunchActivity launchActivity = LaunchActivity.instance;

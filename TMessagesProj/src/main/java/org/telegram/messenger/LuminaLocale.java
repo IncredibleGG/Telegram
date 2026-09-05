@@ -151,6 +151,8 @@ public final class LuminaLocale {
         zhHans.put("LuminaSaveToCloud", "保存到收藏夹");
         zhHans.put("LuminaSelectFromAuthor", "选择该作者的全部消息");
         zhHans.put("LuminaCheckUpdate", "检查更新");
+        zhHans.put("LuminaBetaChannel", "测试版更新");
+        zhHans.put("LuminaBetaChannelInfo", "抢先收到面向所有人发布前的测试版。测试版可能不够稳定。");
         zhHans.put("LuminaUpdateAvailable", "有可用更新");
         zhHans.put("LuminaUpdateNewVersion", "新版本");
         zhHans.put("LuminaUpdateNow", "立即更新");
@@ -735,6 +737,8 @@ zhHans.put("LuminaDigestTitle", "未读摘要");
         zhHant.put("LuminaSaveToCloud", "儲存至「儲存的訊息」");
         zhHant.put("LuminaSelectFromAuthor", "選擇該作者的所有訊息");
         zhHant.put("LuminaCheckUpdate", "檢查更新");
+        zhHant.put("LuminaBetaChannel", "測試版更新");
+        zhHant.put("LuminaBetaChannelInfo", "搶先收到向所有人發佈前的測試版。測試版可能較不穩定。");
         zhHant.put("LuminaUpdateAvailable", "有可用更新");
         zhHant.put("LuminaUpdateNewVersion", "新版本");
         zhHant.put("LuminaUpdateNow", "立即更新");

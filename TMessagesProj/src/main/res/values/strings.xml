@@ -11414,6 +11414,8 @@
     <string name="LuminaSelectFromAuthor">Select all from author</string>
     <!-- LuminaGram self-updater -->
     <string name="LuminaCheckUpdate">Check for updates</string>
+    <string name="LuminaBetaChannel">Beta updates</string>
+    <string name="LuminaBetaChannelInfo">Receive test builds before they are released to everyone. Beta builds may be less stable.</string>
     <string name="LuminaUpdateAvailable">Update available</string>
     <string name="LuminaUpdateNewVersion">New version</string>
     <string name="LuminaUpdateNow">Update</string>

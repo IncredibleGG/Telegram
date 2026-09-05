@@ -46818,6 +46818,12 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_LUMINA_EXPLAIN);
             icons.add(R.drawable.msg_language);
         }
+
+        if (showWelcomeMessageRevertOption(primaryMessage)) {
+            items.add(getString(R.string.WelcomeMessageRevert));
+            options.add(OPTION_WELCOME_REVERT);
+            icons.add(R.drawable.outline_revert_24);
+        }
     }
 
     // LuminaGram: read-only message details popup. Everything shown is already on the
@@ -46959,12 +46965,6 @@ public class ChatActivity extends BaseFragment implements
                 showDialog(builder.create());
             }
         });
-
-        if (showWelcomeMessageRevertOption(primaryMessage)) {
-            items.add(getString(R.string.WelcomeMessageRevert));
-            options.add(OPTION_WELCOME_REVERT);
-            icons.add(R.drawable.outline_revert_24);
-        }
     }
 
     private boolean showWelcomeMessageRevertOption(MessageObject messageObject) {

@@ -44,6 +44,10 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
 
     // --- LuminaGram in-app self-updater (R2 version.json -> download -> install) ---
     private static final String LUMINA_UPDATE_MANIFEST_URL = "https://pub-d6a54d2e5f5947e2b0b23fb8e27ce0a5.r2.dev/version.json";
+    // LuminaGram: beta-channel manifest, a sibling of version.json on the same R2 bucket.
+    // Polled instead of the stable manifest when LuminaConfig.betaChannel is ON, so opted-in
+    // users auto-update to test builds while stable users only ever see promoted builds.
+    private static final String LUMINA_UPDATE_MANIFEST_URL_BETA = "https://pub-d6a54d2e5f5947e2b0b23fb8e27ce0a5.r2.dev/version-beta.json";
 
     // LuminaGram: an APK that finished downloading but has not been installed yet is
     // remembered in the app-private "luminagram" prefs, so the offer to install survives
@@ -386,7 +390,8 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
             boolean failed = false;
             HttpURLConnection connection = null;
             try {
-                URL url = new URL(LUMINA_UPDATE_MANIFEST_URL);
+                String manifestUrl = LuminaConfig.betaChannel ? LUMINA_UPDATE_MANIFEST_URL_BETA : LUMINA_UPDATE_MANIFEST_URL;
+                URL url = new URL(manifestUrl);
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(30000);
