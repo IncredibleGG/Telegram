@@ -308,18 +308,11 @@ public class TranslateController extends BaseController {
     }
 
     public String getDialogTranslateTo(long dialogId) {
-        // LuminaGram: dual-language incoming display -- always translate INTO the user's
-        // configured READ language (trReadLang; empty => app language), overriding the
-        // stored/auto/outgoing target logic below. Placed first so it wins whenever
-        // dual-language display is enabled; untouched when the feature is off.
-        if (LuminaConfig.getBoolean("dualLanguageDisplay", false)) {
-            final String r = LuminaConfig.getString("trReadLang", "");
-            String readLang = (r == null || r.isEmpty()) ? currentLanguage() : r;
-            if ("nb".equals(readLang)) {
-                readLang = "no";
-            }
-            return readLang;
-        }
+        // LuminaGram: per-chat target for BOTH dual-language display and the translate
+        // bar. This used to return the single global trReadLang whenever dual-language
+        // display was on, so picking a language for one chat changed every chat's target.
+        // Now every mode resolves the per-dialog target below (falling back to the app
+        // language), so each chat keeps its own choice.
         String lang = translateDialogLanguage.get(dialogId);
         if (lang == null) {
             // LuminaGram (Wave 8): restore the per-dialog target language chosen

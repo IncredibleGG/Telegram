@@ -49,7 +49,6 @@ public final class LuminaChatLanguageMenu {
     // language" everywhere the read language is read.
     private static final String OFF_CODE = "off";
 
-    private static final String KEY_READ_LANG = "trReadLang";
     private static final String KEY_SEND_LANG = "trSendLang";
     private static final String AUTO = "auto";
 
@@ -191,10 +190,7 @@ public final class LuminaChatLanguageMenu {
         if (controller.isTranslateDialogHidden(dialogId) || !controller.isTranslatingDialog(dialogId)) {
             return LuminaLocale.getString(R.string.LuminaChatLangThemOff);
         }
-        final String stored = LuminaConfig.getString(KEY_READ_LANG, "");
-        final String code = (stored == null || stored.length() == 0)
-                ? controller.getDialogTranslateTo(dialogId)
-                : stored;
+        final String code = controller.getDialogTranslateTo(dialogId);
         return String.format(LuminaLocale.getString(R.string.LuminaChatLangThem), languageName(code));
     }
 
@@ -216,17 +212,13 @@ public final class LuminaChatLanguageMenu {
                         final boolean wasTranslating = controller.isTranslatingDialog(dialogId)
                                 && !controller.isTranslateDialogHidden(dialogId);
 
-                        // Order matters: the language is what this chat is about to be
-                        // translated into, so it has to be stored before the translation
-                        // starts reading it.
-                        LuminaConfig.putString(KEY_READ_LANG, code);
                         if (controller.isTranslateDialogHidden(dialogId)) {
                             // Naming a language also takes the chat back off the excluded list.
                             controller.setHideTranslateDialog(dialogId, false, true);
                         }
-                        // trReadLang only decides the target while bilingual display is on;
-                        // with it off the target comes from the per-dialog store instead, so
-                        // both have to be written or the choice would apply to one mode only.
+                        // LuminaGram: per-chat target ONLY -- store it for THIS dialog and
+                        // never a global key, so the choice cannot leak to other chats
+                        // (getDialogTranslateTo resolves this per-dialog value in every mode).
                         controller.setDialogTranslateTo(dialogId, code);
                         if (wasTranslating && !TextUtils.equals(previous, code)) {
                             // Already translating into another language: stop first, so the
