@@ -665,6 +665,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int photoDateRow;
     private int newContactRiskRow;
     private int chatDateRow;
+    private int chatIdRow;
     private int luminaPrivateNoteRow;
     private int noteRow;
     private int locationRow;
@@ -5086,6 +5087,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     try {
                         AndroidUtilities.addToClipboard(String.valueOf(userId));
                         BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LuminaLocale.getString(R.string.ProfileUserIdCopied)).show();
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                    return true;
+                } else if (position == chatIdRow) {
+                    try {
+                        AndroidUtilities.addToClipboard(String.valueOf(chatId));
+                        BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LuminaLocale.getString(R.string.ProfileChatIdCopied)).show();
                     } catch (Exception e) {
                         FileLog.e(e);
                     }
@@ -10690,6 +10699,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         newContactRiskRow = -1;
         luminaPrivateNoteRow = -1;
         chatDateRow = -1;
+        chatIdRow = -1;
         setUsernameRow = -1;
         bioRow = -1;
         channelRow = -1;
@@ -11137,6 +11147,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     emptyRow = rowCount++;
                 }
             }
+            // LuminaGram: always show the numeric chat/channel ID (copyable).
+            chatIdRow = rowCount++;
             if (LuminaConfig.getBoolean("showChatDate", false) && currentChat != null && currentChat.date > 0) {
                 chatDateRow = rowCount++;
             }
@@ -13771,6 +13783,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             summary = LuminaLocale.getString(R.string.LuminaPrivateNoteEmpty);
                         }
                         detailCell.setTextAndValue(summary, LuminaLocale.getString(R.string.LuminaPrivateNote), false);
+                    } else if (position == chatIdRow) {
+                        detailCell.setTextAndValue(String.valueOf(chatId), LuminaLocale.getString(R.string.ProfileChatId), false);
                     } else if (position == chatDateRow) {
                         String value = "—";
                         if (currentChat != null && currentChat.date > 0) {
@@ -14620,7 +14634,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == registrationDateRow || position == dcIdRow || position == userIdRow || position == photoDateRow || position == luminaPrivateNoteRow || position == chatDateRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == registrationDateRow || position == dcIdRow || position == userIdRow || position == photoDateRow || position == luminaPrivateNoteRow || position == chatDateRow || position == chatIdRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;

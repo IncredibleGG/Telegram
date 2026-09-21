@@ -11442,6 +11442,8 @@
     <string name="ProfileDcId">Datacenter</string>
     <string name="ProfileUserId">User ID</string>
     <string name="ProfileUserIdCopied">User ID copied to clipboard</string>
+    <string name="ProfileChatId">Chat ID</string>
+    <string name="ProfileChatIdCopied">Chat ID copied to clipboard</string>
     <string name="ProfileChatCreated">Created</string>
     <string name="ProfileChatJoined">Joined</string>
     <string name="LuminaMessageDetails">Details</string>
