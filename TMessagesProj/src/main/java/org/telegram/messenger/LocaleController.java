@@ -1450,8 +1450,37 @@ public class LocaleController {
         "PermissionNoLocation", "PermissionNoLocationFriends", "PermissionNoLocationNavigation",
         "PermissionNoLocationStory", "PermissionNoStorageAvatar", "PermissionStorageWithHint",
         "PermissionXiaomiLockscreen", "ProfilePopupNotificationInfo", "SecretChatName",
-        "SentCallCode", "ShareTelegram2", "TelegramFeatures", "TelegramVersion", "UnlockToUse", "UpdateAppAlert"
+        "SentCallCode", "ShareTelegram2", "TelegramFeatures", "TelegramVersion", "UnlockToUse", "UpdateAppAlert",
+        // LuminaGram: high-confidence app-self additions (see DEBRAND_REVIEW.md for deferred/ambiguous keys)
+        "AgeVerificationNeedCameraPermission", "QRCodePermissionNoCameraWithHint",
+        "VoipNeedCameraPermission", "VoipNeedMicCameraPermissionWithHint", "VoipNeedMicPermissionWithHint",
+        "AppUpdate", "AppUpdateBeta", "UpdateTelegram",
+        "StoryUnsupported", "UnsupportedBlockMessage", "UnsupportedMedia2", "UnsupportedMessageMessage",
+        "ClearingCacheDescription", "ClearTelegramCache", "LocalDatabaseSize", "SdCardAlert",
+        "SdCardErrorDescription", "StorageUsageTelegram", "StorageUsageTelegramLess", "TelegramCacheSize",
+        "ChangePasscodeInfo", "CreatePasscodeInfoPassword", "CreatePasscodeInfoPIN",
+        "EnterYourPasscodeInfo", "EnterYourTelegramPasscode",
+        "MigrateOldFolderDescription", "TelegramTones", "WearAuthTitle"
     ));
+
+    // LuminaGram: case-preserving brand swap for LUMINA_BRAND_LOCKED_KEYS values.
+    // Cloud-language-pack translations of these stock keys can embed telegram.org (and
+    // other *.telegram.org / t.me) URLs; a blind lowercase swap would turn "telegram.org"
+    // into "luminagram.org" (a dead link). The visible TELEGRAM / Telegram forms never
+    // occur inside a lowercase URL and are swapped directly; the lowercase pass is guarded
+    // to skip any "telegram" glued to URL/domain characters (mirrors how the desktop fork
+    // refuses lowercase replacement inside URLs).
+    private static final java.util.regex.Pattern LUMINA_LOWER_TELEGRAM =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9./@:_~-])telegram(?![A-Za-z0-9./_~-])");
+
+    private static String luminaRebrand(String value) {
+        if (value == null) {
+            return null;
+        }
+        value = value.replace("TELEGRAM", "LUMINAGRAM").replace("Telegram", "LuminaGram");
+        value = LUMINA_LOWER_TELEGRAM.matcher(value).replaceAll("luminagram");
+        return value;
+    }
 
     private String getStringInternal(String key, int res) {
         return getStringInternal(key, null, 0, res);
@@ -1480,7 +1509,7 @@ public class LocaleController {
             value = "LOC_ERR:" + key;
         }
         if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
-            value = value.replace("TELEGRAM", "LUMINAGRAM").replace("Telegram", "LuminaGram").replace("telegram", "luminagram");
+            value = luminaRebrand(value);
         }
         return value;
     }
@@ -1724,7 +1753,7 @@ public class LocaleController {
             }
 
             if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
-                value = value.replace("TELEGRAM", "LUMINAGRAM").replace("Telegram", "LuminaGram").replace("telegram", "luminagram");
+                value = luminaRebrand(value);
             }
             if (getInstance().currentLocale != null) {
                 return String.format(getInstance().currentLocale, value, args);
@@ -1776,7 +1805,7 @@ public class LocaleController {
             }
 
             if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
-                value = value.replace("TELEGRAM", "LUMINAGRAM").replace("Telegram", "LuminaGram").replace("telegram", "luminagram");
+                value = luminaRebrand(value);
             }
             SpannableStringBuilder builder = new SpannableStringBuilder(value);
             for (int i = 0; i < args.length; i++) {
