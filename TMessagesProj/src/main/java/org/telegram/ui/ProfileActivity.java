@@ -11149,7 +11149,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
             // LuminaGram: always show the numeric chat/channel ID (copyable).
             chatIdRow = rowCount++;
-            if (LuminaConfig.getBoolean("showChatDate", false) && currentChat != null && currentChat.date > 0) {
+            if (LuminaConfig.getBoolean("showChatDate", true) && currentChat != null && currentChat.date > 0) {
                 chatDateRow = rowCount++;
             }
             if (LuminaConfig.getBoolean("showDcId", false) && getProfileDcId() > 0) {

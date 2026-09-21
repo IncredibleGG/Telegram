@@ -82,7 +82,7 @@ public class LuminaChatActivity extends BaseFragment {
         items.add(UItem.asSwitch(8, LuminaLocale.getString(R.string.LuminaShowMessageDetails)).setChecked(LuminaConfig.getBoolean("showMessageDetails", true)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaShowDcIdInfo)));
 
-        items.add(UItem.asSwitch(7, LuminaLocale.getString(R.string.LuminaShowChatDate)).setChecked(LuminaConfig.getBoolean("showChatDate", false)));
+        items.add(UItem.asSwitch(7, LuminaLocale.getString(R.string.LuminaShowChatDate)).setChecked(LuminaConfig.getBoolean("showChatDate", true)));
         items.add(UItem.asSwitch(9, LuminaLocale.getString(R.string.LuminaTimeWithSeconds)).setChecked(LuminaConfig.getBoolean("timeWithSeconds", false)));
         items.add(UItem.asShadow(null));
     }
@@ -123,7 +123,7 @@ public class LuminaChatActivity extends BaseFragment {
                 LuminaConfig.putBoolean("showDcId", !LuminaConfig.getBoolean("showDcId", false));
                 break;
             case 7:
-                LuminaConfig.putBoolean("showChatDate", !LuminaConfig.getBoolean("showChatDate", false));
+                LuminaConfig.putBoolean("showChatDate", !LuminaConfig.getBoolean("showChatDate", true));
                 break;
             case 8:
                 LuminaConfig.putBoolean("showMessageDetails", !LuminaConfig.getBoolean("showMessageDetails", true));
