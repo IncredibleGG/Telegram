@@ -314,6 +314,40 @@ public class LuminaConfig {
         }
     }
 
+    // ---- Notification fine control (#18) ----
+    // Two independent, opt-in gates over the OS-notification pipeline, read by
+    // NotificationsController when it decides whether a freshly-arrived (or reloaded)
+    // message should raise a notification. Both keys default to false, so a user who
+    // never touches them -- and every stock build -- behaves byte-for-byte like upstream:
+    // shouldSuppressNotification() returns false and the caller takes its normal path.
+    // These gates ONLY suppress the notification; the caller never marks anything read
+    // and never changes an unread count as a result of this return value.
+    public static final String KEY_MUTE_NOTIFY_PINNED = "muteNotifyPinned";
+    public static final String KEY_MUTE_NOTIFY_MENTIONS = "muteNotifyMentions";
+
+    /**
+     * True when this message must NOT raise an OS notification under the user's #18
+     * settings: a pinned-message service event when "mute pinned" is on, or a message
+     * that @mentions the user / replies to their message when "mute mentions & replies"
+     * is on. Never throws; on any doubt it returns false (= show the notification).
+     */
+    public static boolean shouldSuppressNotification(MessageObject mo) {
+        if (mo == null || mo.messageOwner == null) {
+            return false;
+        }
+        try {
+            if (getBoolean(KEY_MUTE_NOTIFY_PINNED, false)
+                    && mo.messageOwner.action instanceof org.telegram.tgnet.TLRPC.TL_messageActionPinMessage) {
+                return true;
+            }
+            if (getBoolean(KEY_MUTE_NOTIFY_MENTIONS, false) && mo.messageOwner.mentioned) {
+                return true;
+            }
+        } catch (Throwable ignore) {
+        }
+        return false;
+    }
+
     // True only when {@code key} has actually been written to the prefs (as opposed to
     // returning a caller-supplied default). Used by the disguise vault to detect legacy
     // decoy-lock users whose new {@code vaultEnabled} flag has never been persisted.

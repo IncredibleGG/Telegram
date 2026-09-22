@@ -11304,6 +11304,10 @@
     <string name="LuminaPrivacyNotificationsHeader">Notifications</string>
     <string name="LuminaPrivacyHideNotifContent">Hide notification content</string>
     <string name="LuminaPrivacyHideNotifContentInfo">When on, every notification shows only the app name and a generic “New message” — the sender and message preview stay hidden.</string>
+    <string name="LuminaMuteNotifyPinned">Mute pinned-message notifications</string>
+    <string name="LuminaMuteNotifyPinnedInfo">When on, you will not get a notification when someone pins a message (the “X pinned a message” service message). The pin still happens and the message stays visible in the chat.</string>
+    <string name="LuminaMuteNotifyMentions">Mute mentions &amp; replies</string>
+    <string name="LuminaMuteNotifyMentionsInfo">When on, @mentions of you and replies to your messages no longer raise a notification. Nothing is marked read and the messages still appear in the chat as usual.</string>
     <string name="LuminaHiddenNotificationText">New message</string>
     <string name="LuminaTranslateTitle">Auto-translate</string>
     <string name="LuminaTranslateHeader">Translation</string>

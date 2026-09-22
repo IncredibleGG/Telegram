@@ -49,6 +49,8 @@ public class LuminaPrivacyActivity extends BaseFragment {
     private static final int ID_AUTO_BLUR_INCOMING = 14;
     private static final int ID_OTP_GUARD = 15;
     private static final int ID_STRANGER_INBOX = 16;
+    private static final int ID_MUTE_NOTIFY_PINNED = 17;
+    private static final int ID_MUTE_NOTIFY_MENTIONS = 18;
 
     private UniversalRecyclerView listView;
 
@@ -126,6 +128,12 @@ public class LuminaPrivacyActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_HIDE_NOTIF_CONTENT, LuminaLocale.getString(R.string.LuminaPrivacyHideNotifContent))
                 .setChecked(LuminaConfig.getBoolean("hideNotifContent", false)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaPrivacyHideNotifContentInfo)));
+        items.add(UItem.asSwitch(ID_MUTE_NOTIFY_PINNED, LuminaLocale.getString(R.string.LuminaMuteNotifyPinned))
+                .setChecked(LuminaConfig.getBoolean(LuminaConfig.KEY_MUTE_NOTIFY_PINNED, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMuteNotifyPinnedInfo)));
+        items.add(UItem.asSwitch(ID_MUTE_NOTIFY_MENTIONS, LuminaLocale.getString(R.string.LuminaMuteNotifyMentions))
+                .setChecked(LuminaConfig.getBoolean(LuminaConfig.KEY_MUTE_NOTIFY_MENTIONS, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMuteNotifyMentionsInfo)));
 
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaStrangerInboxHeader)));
         items.add(UItem.asSwitch(ID_STRANGER_INBOX, LuminaLocale.getString(R.string.LuminaStrangerInbox))
@@ -175,6 +183,12 @@ public class LuminaPrivacyActivity extends BaseFragment {
                 break;
             case ID_STRANGER_INBOX:
                 LuminaConfig.toggleStrangerInbox();
+                break;
+            case ID_MUTE_NOTIFY_PINNED:
+                LuminaConfig.putBoolean(LuminaConfig.KEY_MUTE_NOTIFY_PINNED, !LuminaConfig.getBoolean(LuminaConfig.KEY_MUTE_NOTIFY_PINNED, false));
+                break;
+            case ID_MUTE_NOTIFY_MENTIONS:
+                LuminaConfig.putBoolean(LuminaConfig.KEY_MUTE_NOTIFY_MENTIONS, !LuminaConfig.getBoolean(LuminaConfig.KEY_MUTE_NOTIFY_MENTIONS, false));
                 break;
         }
         if (listView != null && listView.adapter != null) {

@@ -1199,6 +1199,17 @@ public class NotificationsController extends BaseController implements Notificat
                     }
                     continue;
                 }
+                // LuminaGram #18: notification fine control. Suppress the OS notification for
+                // pinned-message service events / @mentions & replies when the matching gate is on.
+                // Placed with the other notification skips above (opened chat, edited): we simply
+                // `continue` before this message is counted or appended, so nothing is shown for it
+                // -- and, exactly like those skips, no read state or unread count is touched.
+                if (LuminaConfig.shouldSuppressNotification(messageObject)) {
+                    if (BuildVars.LOGS_ENABLED) {
+                        FileLog.d("LuminaGram #18: skipped notification (pinned/mention gate)");
+                    }
+                    continue;
+                }
                 if (messageObject.messageOwner.mentioned) {
                     if (!allowPinned && messageObject.messageOwner.action instanceof TLRPC.TL_messageActionPinMessage) {
                         if (BuildVars.LOGS_ENABLED) {
@@ -1554,6 +1565,12 @@ public class NotificationsController extends BaseController implements Notificat
                         continue;
                     }
                     MessageObject messageObject = new MessageObject(currentAccount, message, false, false);
+                    // LuminaGram #18: same notification fine-control gate as the live path, applied
+                    // when stored unread pushes are rebuilt at startup, so a suppressed pinned/mention
+                    // message does not resurface as a notification (or in the badge count) on restart.
+                    if (LuminaConfig.shouldSuppressNotification(messageObject)) {
+                        continue;
+                    }
                     if (isPersonalMessage(messageObject)) {
                         personalCount++;
                     }
