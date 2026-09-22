@@ -41,6 +41,7 @@ public class LuminaMediaActivity extends BaseFragment {
     private static final int ID_ATTACH_DRAG_REORDER = 5;
     private static final int ID_SEND_LARGE_PHOTOS = 6;
     private static final int ID_SWIPE_VIDEO_PIP = 7;
+    private static final int ID_TRANSFER_BOOST = 8;
 
     private static final String KEY_KEEP_ORIGINAL_FILENAME = "keepOriginalFilename";
     private static final String KEY_AUTO_PAUSE_BG_VIDEO = "autoPauseBgVideo";
@@ -128,6 +129,12 @@ public class LuminaMediaActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_SWIPE_VIDEO_PIP, LuminaLocale.getString(R.string.LuminaMediaSwipeVideoPip))
                 .setChecked(LuminaConfig.swipeVideoToPip));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaSwipeVideoPipInfo)));
+
+        // --- Large file transfers (feature #21) ---
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMediaTransferHeader)));
+        items.add(UItem.asSwitch(ID_TRANSFER_BOOST, LuminaLocale.getString(R.string.LuminaMediaTransferBoost))
+                .setChecked(LuminaConfig.transferBoost));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaTransferBoostInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -172,6 +179,13 @@ public class LuminaMediaActivity extends BaseFragment {
         }
         if (item.id == ID_SWIPE_VIDEO_PIP) {
             LuminaConfig.toggleSwipeVideoToPip();
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id == ID_TRANSFER_BOOST) {
+            LuminaConfig.toggleTransferBoost();
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
             }

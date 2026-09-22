@@ -319,6 +319,27 @@ public class FileUploadOperation {
                 }
                 maxRequestsCount = Math.max(1, (slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes) / uploadChunkSize);
 
+                // LuminaGram feature #21 (transfer boost, default OFF). When ON -- and only on a
+                // normal-speed network -- raise the upload part to 512 KB, the MTProto upload
+                // maximum: 512 KB is a power of two, 524288 % 524288 == 0, and part <= 512 KB, so
+                // it is valid for both saveFilePart and saveBigFilePart. (1 MB is deliberately NOT
+                // used for uploads: it violates 524288 % part_size == 0 and the server would reject
+                // it -- stock itself never exceeds 512 KB, because uploadMaxFileParts is sized so
+                // the largest allowed file lands on exactly 512 KB parts.) We only ever RAISE toward
+                // a value that still divides 1024, never lower it, so the invariant 1024 %
+                // uploadChunkSize == 0 holds, totalPartsCount computed below can only shrink (stays
+                // <= maxUploadParts), and every part offset stays aligned. maxRequestsCount is
+                // recomputed so the in-flight cap and the encrypted IV pool match the new part
+                // size. When OFF this block is skipped and uploadChunkSize / maxRequestsCount /
+                // totalPartsCount are byte-identical to stock. uploadChunkSize is in KB here.
+                if (LuminaConfig.transferBoost && !slowNetwork) {
+                    final int boostChunkKB = 512;
+                    if (uploadChunkSize < boostChunkKB) {
+                        uploadChunkSize = boostChunkKB;
+                        maxRequestsCount = Math.max(1, maxUploadingKBytes / uploadChunkSize);
+                    }
+                }
+
                 if (isEncrypted) {
                     freeRequestIvs = new ArrayList<>(maxRequestsCount);
                     for (int a = 0; a < maxRequestsCount; a++) {
@@ -330,7 +351,13 @@ public class FileUploadOperation {
                 calcTotalPartsCount();
                 readBuffer = new byte[uploadChunkSize];
 
-                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : ""));
+                // LuminaGram feature #21: with transfer boost the part size differs from a stock
+                // build, so a resume must never cross between the two (mixing part sizes under one
+                // file_id corrupts the upload). Namespacing the persisted resume key by the actual
+                // boost-applied condition keeps the two resume states apart; the suffix is empty
+                // whenever the boost is not applied, so the key -- and every stored resume entry --
+                // stays byte-identical to stock.
+                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : "") + (LuminaConfig.transferBoost && !slowNetwork ? "boost" : ""));
                 long fileSize = preferences.getLong(fileKey + "_size", 0);
                 uploadStartTime = (int)(System.currentTimeMillis() / 1000);
                 boolean rewrite = false;

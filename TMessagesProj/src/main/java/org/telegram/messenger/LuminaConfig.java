@@ -125,6 +125,15 @@ public class LuminaConfig {
     // the viewer. Default OFF = stock behavior (swipe closes). Read once at gesture-release time.
     public static boolean swipeVideoToPip;
 
+    // ---- Large-file transfer boost (feature #21) ----
+    // Raise the MTProto upload/download part size (and download concurrency) so large
+    // files move with fewer round trips. Default OFF: when off, FileLoadOperation and
+    // FileUploadOperation take their existing stock code paths untouched and every part
+    // size / part-count value is byte-identical to upstream. When on, downloads use 1 MB
+    // parts and uploads use 512 KB parts -- both server-valid protocol maxima (see the
+    // hooks). Plain static-field read from the transfer hot paths, refreshed by loadConfig().
+    public static boolean transferBoost;
+
     // ---- Message filter (Batch 4 #22) ----
     // A user keyword list; incoming messages whose visible text matches any keyword are dropped
     // from the to-be-displayed list before it is built (pure client-side display filter -- the
@@ -173,6 +182,7 @@ public class LuminaConfig {
                 outgoingPhotoQuality = preferences.getInt("outgoingPhotoQuality", 80);
                 sendLargePhotos = preferences.getBoolean("sendLargePhotos", false);
                 swipeVideoToPip = preferences.getBoolean("swipeVideoToPip", false);
+                transferBoost = preferences.getBoolean("transferBoost", false);
                 reloadMessageFilter();
 
                 configLoaded = true;
@@ -944,6 +954,14 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("swipeVideoToPip", swipeVideoToPip ^= true).apply();
+    }
+
+    /** Speed up large uploads/downloads with bigger MTProto parts (default OFF = stock). */
+    public static void toggleTransferBoost() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("transferBoost", transferBoost ^= true).apply();
     }
 
     public static void toggleTranslateBeforeSend() {

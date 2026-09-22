@@ -295,6 +295,18 @@ public class FileLoadOperation {
             maxDownloadRequests = 4;
             maxDownloadRequestsBig = 4;
         }
+        // LuminaGram feature #21 (transfer boost, default OFF). When ON, raise the big-file
+        // download part to 1 MB -- the getFile protocol maximum: 1048576 divides 1048576, so a
+        // 1 MB-aligned request fills exactly one 1 MB block and offset/limit stay valid -- and
+        // use the same request concurrency the experimental path already ships. maxCdnParts is
+        // recomputed below from the new part size (fewer parts, still within the server limit).
+        // When OFF this branch is skipped and downloadChunkSizeBig / the request counts /
+        // maxCdnParts are byte-identical to stock. Never applied on the small-chunk fallback.
+        if (LuminaConfig.transferBoost && !forceSmallChunk) {
+            downloadChunkSizeBig = 1024 * 1024;
+            maxDownloadRequests = 8;
+            maxDownloadRequestsBig = 8;
+        }
         maxCdnParts = (int) (FileLoader.DEFAULT_MAX_FILE_SIZE / downloadChunkSizeBig);
     }
 
