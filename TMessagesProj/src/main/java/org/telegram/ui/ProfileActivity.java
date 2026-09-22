@@ -10704,19 +10704,40 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     // Mirrors ProfileChannelCell: TL_channels_getMessages for channels/supergroups,
     // TL_messages_getMessages for basic groups; the id list carries plain ints in this fork.
     private void requestChatCreationDate() {
-        if (luminaChatCreationDateRequested || currentChat == null || chatId == 0) {
+        if (currentChat == null || chatId == 0) {
+            return;
+        }
+        // Basic groups use chat.date (seeded when the row is built); only
+        // channels/supergroups resolve a creation date here.
+        if (!ChatObject.isChannel(currentChat)) {
+            return;
+        }
+        // A supergroup migrated from a basic group inherits the basic group's
+        // creation date; the supergroup's own message #1 is only the migration
+        // point (a newer, wrong date). Full info carries migrated_from_chat_id and
+        // the legacy chat (with its real date) is already in memory - no fetch.
+        // Re-runs when chatInfo loads (chatInfoDidLoad rebinds the row).
+        if (chatInfo != null && chatInfo.migrated_from_chat_id != 0) {
+            TLRPC.Chat legacy = getMessagesController().getChat(chatInfo.migrated_from_chat_id);
+            if (legacy != null && legacy.date > 0) {
+                if (luminaChatCreationDate != legacy.date) {
+                    luminaChatCreationDate = legacy.date;
+                    if (listAdapter != null && chatDateRow >= 0) {
+                        listAdapter.notifyItemChanged(chatDateRow);
+                    }
+                }
+                return;
+            }
+            // Legacy chat not in memory yet: fall through to message #1 as a fallback.
+        }
+        if (luminaChatCreationDateRequested) {
             return;
         }
         luminaChatCreationDateRequested = true;
-        // Only channels/supergroups have a per-chat message-id sequence starting at 1.
-        // Basic groups use chat.date (seeded when the row is built), so no fetch here -
-        // fetching message #1 for a basic group would return an unrelated global message.
-        if (ChatObject.isChannel(currentChat)) {
-            TLRPC.TL_channels_getMessages req = new TLRPC.TL_channels_getMessages();
-            req.channel = getMessagesController().getInputChannel(chatId);
-            req.id.add(1);
-            getConnectionsManager().sendRequest(req, (response, error) -> handleChatCreationDateResponse(response));
-        }
+        TLRPC.TL_channels_getMessages req = new TLRPC.TL_channels_getMessages();
+        req.channel = getMessagesController().getInputChannel(chatId);
+        req.id.add(1);
+        getConnectionsManager().sendRequest(req, (response, error) -> handleChatCreationDateResponse(response));
     }
 
     private void handleChatCreationDateResponse(TLObject response) {
