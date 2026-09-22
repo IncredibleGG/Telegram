@@ -14082,6 +14082,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setImage(null);
                         detailCell.setImageClickListener(null);
                     }
+                    // LuminaGram FEATURE #13: tasteful leading icon on the info rows
+                    // (Chat/User ID, Created/Registration/Photo date, DC id) so they read as a clean card.
+                    // Cleared for every other detail row so recycled cells never keep a stray icon.
+                    int luminaLeftIcon;
+                    if (position == chatIdRow || position == userIdRow) {
+                        luminaLeftIcon = R.drawable.msg_info;
+                    } else if (position == chatDateRow || position == registrationDateRow || position == photoDateRow) {
+                        luminaLeftIcon = R.drawable.msg_calendar2;
+                    } else if (position == dcIdRow) {
+                        luminaLeftIcon = R.drawable.msg2_devices;
+                    } else {
+                        luminaLeftIcon = 0;
+                    }
+                    detailCell.setLeftIcon(luminaLeftIcon, Theme.key_windowBackgroundWhiteGrayIcon);
                     detailCell.setTag(position);
                     detailCell.textView.setLoading(loadingSpan);
                     detailCell.valueTextView.setLoading(loadingSpan);

@@ -14,6 +14,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -44,6 +46,11 @@ public class TextDetailCell extends FrameLayout {
     public final LinkSpanDrawable.LinksTextView rightValueTextView;
     private final TextView showMoreTextView = null;
     private final ImageView imageView;
+    // LuminaGram: optional leading icon for info rows (id / created / DC ...)
+    private final ImageView leftImageView;
+    private boolean hasLeftIcon;
+    private final int iconTextBaseMargin;
+    private final int iconValueBaseMargin;
     private boolean needDivider;
     private boolean contentDescriptionValueFirst;
     private boolean multiline;
@@ -166,6 +173,15 @@ public class TextDetailCell extends FrameLayout {
         imageView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         imageView.setScaleType(ImageView.ScaleType.CENTER);
         addView(imageView, LayoutHelper.createFrameRelatively(48, 48, Gravity.END | Gravity.CENTER_VERTICAL, 0, 0, 12, 0));
+
+        // LuminaGram: leading icon slot (hidden by default; opt-in per row via setLeftIcon)
+        iconTextBaseMargin = dp(horizPadding - 6);
+        iconValueBaseMargin = dp(horizPadding);
+        leftImageView = new ImageView(context);
+        leftImageView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        leftImageView.setScaleType(ImageView.ScaleType.CENTER);
+        leftImageView.setVisibility(GONE);
+        addView(leftImageView, LayoutHelper.createFrameRelatively(24, 24, Gravity.START | Gravity.CENTER_VERTICAL, 18, 0, 0, 0));
     }
 
     protected int processColor(int color) {
@@ -247,6 +263,46 @@ public class TextDetailCell extends FrameLayout {
         if (clickListener == null) {
             imageView.setClickable(false);
         }
+    }
+
+    // LuminaGram: set (resId != 0) or clear (resId == 0) a leading icon; shifts text/value to keep alignment.
+    public void setLeftIcon(int resId, int colorKey) {
+        if (resId == 0) {
+            clearLeftIcon();
+            return;
+        }
+        leftImageView.setImageResource(resId);
+        leftImageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(colorKey, resourcesProvider), PorterDuff.Mode.SRC_IN));
+        leftImageView.setVisibility(VISIBLE);
+        if (!hasLeftIcon) {
+            hasLeftIcon = true;
+            applyLeftIconMargins(true);
+        }
+    }
+
+    public void clearLeftIcon() {
+        if (!hasLeftIcon) {
+            return;
+        }
+        hasLeftIcon = false;
+        leftImageView.setImageDrawable(null);
+        leftImageView.setVisibility(GONE);
+        applyLeftIconMargins(false);
+    }
+
+    private void applyLeftIconMargins(boolean on) {
+        int extra = on ? dp(40) : 0;
+        MarginLayoutParams tlp = (MarginLayoutParams) textView.getLayoutParams();
+        MarginLayoutParams vlp = (MarginLayoutParams) valueTextView.getLayoutParams();
+        if (LocaleController.isRTL) {
+            tlp.rightMargin = iconTextBaseMargin + extra;
+            vlp.rightMargin = iconValueBaseMargin + extra;
+        } else {
+            tlp.leftMargin = iconTextBaseMargin + extra;
+            vlp.leftMargin = iconValueBaseMargin + extra;
+        }
+        textView.setLayoutParams(tlp);
+        valueTextView.setLayoutParams(vlp);
     }
 
     public void setTextWithEmojiAndValue(CharSequence text, CharSequence value, boolean divider) {
