@@ -53,6 +53,8 @@ public class LuminaAppearanceActivity extends BaseFragment {
     private static final int ITEM_STICKER_SIZE_100 = 6;
     private static final int ITEM_STICKER_SIZE_125 = 7;
     private static final int ITEM_STICKER_SIZE_150 = 8;
+    private static final int ITEM_HIDE_REACTIONS = 9;
+    private static final int ITEM_WIDE_CHANNEL_POSTS = 10;
 
     // Sticker render scale (percent); read in ChatMessageCell's sticker layout branch. 100 = unchanged.
     private static final String KEY_STICKER_SCALE = "stickerScale";
@@ -154,6 +156,12 @@ public class LuminaAppearanceActivity extends BaseFragment {
         items.add(UItem.asRadio(ITEM_STICKER_SIZE_125, stickerScaleLabel(125)).setChecked(stickerScale == 125));
         items.add(UItem.asRadio(ITEM_STICKER_SIZE_150, stickerScaleLabel(150)).setChecked(stickerScale == 150));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaAppearanceStickerSizeInfo)));
+
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaBubbleHeader)));
+        items.add(UItem.asSwitch(ITEM_HIDE_REACTIONS, LuminaLocale.getString(R.string.LuminaHideReactions)).setChecked(LuminaConfig.hideReactions));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaHideReactionsInfo)));
+        items.add(UItem.asSwitch(ITEM_WIDE_CHANNEL_POSTS, LuminaLocale.getString(R.string.LuminaWideChannelPosts)).setChecked(LuminaConfig.wideChannelPosts));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaWideChannelPostsInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -185,6 +193,14 @@ public class LuminaAppearanceActivity extends BaseFragment {
                 break;
             case ITEM_STICKER_SIZE_150:
                 setStickerScale(150);
+                break;
+            case ITEM_HIDE_REACTIONS:
+                LuminaConfig.toggleHideReactions();
+                update();
+                break;
+            case ITEM_WIDE_CHANNEL_POSTS:
+                LuminaConfig.toggleWideChannelPosts();
+                update();
                 break;
         }
     }

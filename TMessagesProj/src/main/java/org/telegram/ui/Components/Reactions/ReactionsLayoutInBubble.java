@@ -171,6 +171,20 @@ public class ReactionsLayoutInBubble {
         hasUnreadReactions = false;
         hasPaidReaction = false;
         reactionButtons.clear();
+        // LuminaGram: Hide Reactions -- treat every message as having no reactions. Skips all
+        // button building, so nothing is drawn AND nothing is measured (measure() early-returns
+        // on isEmpty), leaving no empty gap under the bubble. Default OFF = stock behavior.
+        if (org.telegram.messenger.LuminaConfig.hideReactions) {
+            for (int i = 0; i < oldButtons.size(); i++) {
+                oldButtons.get(i).detach();
+            }
+            outButtons.clear();
+            this.isSmall = false;
+            hasUnreadReactions = false;
+            hasPaidReaction = false;
+            isEmpty = true;
+            return;
+        }
         if (messageObject != null) {
             boolean forceLikeDislikeReactions = false; /*!messageObject.isOutOwner()
                     && !messageObject.isBotPendingDraft

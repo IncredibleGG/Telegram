@@ -11551,6 +11551,12 @@
     <string name="LuminaAppearanceFontInfo">Swaps the app typeface. Newly opened screens update immediately; already-open screens refresh after restarting the app.</string>
     <string name="LuminaAppearanceStickerSizeHeader">Sticker size</string>
     <string name="LuminaAppearanceStickerSizeInfo">Scales how large stickers appear in chats. Applies to stickers you send and receive. Open chats update as you scroll.</string>
+    <!-- LuminaGram message-bubble display gates -->
+    <string name="LuminaBubbleHeader">Message bubbles</string>
+    <string name="LuminaHideReactions">Hide reactions</string>
+    <string name="LuminaHideReactionsInfo">Hides the reaction buttons shown under messages, leaving no empty gap behind.</string>
+    <string name="LuminaWideChannelPosts">Wide channel posts</string>
+    <string name="LuminaWideChannelPostsInfo">Renders posts in broadcast channels at the full available width for a reading-style layout.</string>
     <!-- LuminaGram quick reply templates -->
     <string name="LuminaQuickRepliesTitle">Quick replies</string>
     <string name="LuminaQuickRepliesHeader">Templates</string>

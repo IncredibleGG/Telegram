@@ -91,6 +91,15 @@ public class LuminaConfig {
     // and only sees promoted builds. Default OFF so existing users stay on stable.
     public static boolean betaChannel;
 
+    // ---- Message-bubble display gates (Wave) ----
+    // All three default OFF so enabling the fork changes nothing until the user opts in.
+    // Read from ChatMessageCell / ReactionsLayoutInBubble draw+measure hot paths, so they are
+    // plain static-field reads (no prefs I/O per frame), refreshed by loadConfig().
+    // Hide the reaction chips under messages (skips draw AND measure -> no empty gap).
+    public static boolean hideReactions;
+    // Render incoming broadcast-channel text posts at (near) full available width (reading layout).
+    public static boolean wideChannelPosts;
+
     static {
         loadConfig();
     }
@@ -124,6 +133,8 @@ public class LuminaConfig {
                 reverseVoice = preferences.getBoolean("reverseVoice", false);
                 strangerInbox = preferences.getBoolean("strangerInbox", false);
                 betaChannel = preferences.getBoolean("betaChannel", false);
+                hideReactions = preferences.getBoolean("hideReactions", false);
+                wideChannelPosts = preferences.getBoolean("wideChannelPosts", false);
 
                 configLoaded = true;
             } catch (Throwable e) {
@@ -731,6 +742,22 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("betaChannel", betaChannel ^= true).apply();
+    }
+
+    /** Hide the reaction chips under messages (default OFF = stock behavior). */
+    public static void toggleHideReactions() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("hideReactions", hideReactions ^= true).apply();
+    }
+
+    /** Render broadcast-channel text posts at (near) full width (default OFF = stock behavior). */
+    public static void toggleWideChannelPosts() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("wideChannelPosts", wideChannelPosts ^= true).apply();
     }
 
     public static void toggleTranslateBeforeSend() {

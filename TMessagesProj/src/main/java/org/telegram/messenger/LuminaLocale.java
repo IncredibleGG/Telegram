@@ -614,6 +614,11 @@ zhHans.put("LuminaDigestTitle", "未读摘要");
         zhHans.put("LuminaOcrTranslateInfo", "查看全屏图片时，增加一个菜单操作：在本机识别图中文字，并用你选择的引擎翻译。识别过程离线完成。");
         zhHans.put("LuminaReverseVoiceSending", "正在翻译并作为语音消息发送…");
         zhHans.put("LuminaReverseVoiceFailed", "无法生成语音消息");
+                zhHans.put("LuminaBubbleHeader", "消息气泡");
+        zhHans.put("LuminaHideReactions", "隐藏表情回应");
+        zhHans.put("LuminaHideReactionsInfo", "隐藏消息下方的表情回应按钮，且不留空白间隙。");
+        zhHans.put("LuminaWideChannelPosts", "频道贴文加宽");
+        zhHans.put("LuminaWideChannelPostsInfo", "将广播频道的贴文以全宽显示，形成更利于阅读的版式。");
         T.put("zh-hans", zhHans);
 
         // ---- Traditional Chinese ----
@@ -1202,6 +1207,11 @@ zhHant.put("LuminaDigestTitle", "未讀摘要");
         zhHant.put("LuminaOcrTranslateInfo", "檢視全螢幕圖片時，新增一個選單動作：在本機辨識圖中文字，並用你選擇的引擎翻譯。辨識過程離線完成。");
         zhHant.put("LuminaReverseVoiceSending", "正在翻譯並以語音訊息傳送…");
         zhHant.put("LuminaReverseVoiceFailed", "無法產生語音訊息");
+                zhHant.put("LuminaBubbleHeader", "訊息氣泡");
+        zhHant.put("LuminaHideReactions", "隱藏表情回應");
+        zhHant.put("LuminaHideReactionsInfo", "隱藏訊息下方的表情回應按鈕，且不留空白間隙。");
+        zhHant.put("LuminaWideChannelPosts", "頻道貼文加寬");
+        zhHant.put("LuminaWideChannelPostsInfo", "將廣播頻道的貼文以全寬顯示，形成更利於閱讀的版面。");
         T.put("zh-hant", zhHant);
 
         // ---- Arabic (RTL) ----
@@ -1705,6 +1715,11 @@ ar.put("LuminaDigestTitle", "ملخص غير المقروء");
         ar.put("LuminaSecCheckupValueNotSet", "Not set");
         ar.put("LuminaSecCheckupValueUnknown", "Tap to view");
         ar.put("LuminaThemePreviewChatTitle", "دردشة LuminaGram");
+                ar.put("LuminaBubbleHeader", "فقاعات الرسائل");
+        ar.put("LuminaHideReactions", "إخفاء التفاعلات");
+        ar.put("LuminaHideReactionsInfo", "يخفي أزرار التفاعل أسفل الرسائل دون ترك فراغ.");
+        ar.put("LuminaWideChannelPosts", "منشورات عريضة للقنوات");
+        ar.put("LuminaWideChannelPostsInfo", "يعرض منشورات قنوات البث بكامل العرض المتاح لتخطيط أنسب للقراءة.");
         T.put("ar", ar);
 
         // ---- Russian ----
@@ -2208,6 +2223,11 @@ ru.put("LuminaDigestTitle", "Сводка непрочитанных");
         ru.put("LuminaSecCheckupValueNotSet", "Not set");
         ru.put("LuminaSecCheckupValueUnknown", "Tap to view");
         ru.put("LuminaThemePreviewChatTitle", "Чат LuminaGram");
+                ru.put("LuminaBubbleHeader", "Пузырьки сообщений");
+        ru.put("LuminaHideReactions", "Скрыть реакции");
+        ru.put("LuminaHideReactionsInfo", "Скрывает кнопки реакций под сообщениями, не оставляя пустого места.");
+        ru.put("LuminaWideChannelPosts", "Широкие посты каналов");
+        ru.put("LuminaWideChannelPostsInfo", "Отображает посты в каналах во всю доступную ширину для удобного чтения.");
         T.put("ru", ru);
 
         // ---- Persian / Farsi (RTL) ----
@@ -2711,6 +2731,11 @@ fa.put("LuminaDigestTitle", "خلاصه خوانده‌نشده‌ها");
         fa.put("LuminaSecCheckupValueNotSet", "Not set");
         fa.put("LuminaSecCheckupValueUnknown", "Tap to view");
         fa.put("LuminaThemePreviewChatTitle", "گفتگوی LuminaGram");
+                fa.put("LuminaBubbleHeader", "حباب‌های پیام");
+        fa.put("LuminaHideReactions", "پنهان‌کردن واکنش‌ها");
+        fa.put("LuminaHideReactionsInfo", "دکمه‌های واکنش زیر پیام‌ها را پنهان می‌کند و فضای خالی باقی نمی‌گذارد.");
+        fa.put("LuminaWideChannelPosts", "پست‌های عریض کانال");
+        fa.put("LuminaWideChannelPostsInfo", "پست‌های کانال‌های پخش را با تمام عرض موجود برای خوانایی بهتر نمایش می‌دهد.");
         T.put("fa", fa);
 
         // ---- Turkish ----
@@ -3214,6 +3239,11 @@ tr.put("LuminaDigestTitle", "Okunmamış özeti");
         tr.put("LuminaSecCheckupValueNotSet", "Not set");
         tr.put("LuminaSecCheckupValueUnknown", "Tap to view");
         tr.put("LuminaThemePreviewChatTitle", "LuminaGram Sohbeti");
+                tr.put("LuminaBubbleHeader", "Mesaj balonları");
+        tr.put("LuminaHideReactions", "Tepkileri gizle");
+        tr.put("LuminaHideReactionsInfo", "Mesajların altındaki tepki düğmelerini boşluk bırakmadan gizler.");
+        tr.put("LuminaWideChannelPosts", "Geniş kanal gönderileri");
+        tr.put("LuminaWideChannelPostsInfo", "Yayın kanalı gönderilerini okuma düzeni için tüm genişlikte gösterir.");
         T.put("tr", tr);
 
         // ---- Spanish ----
@@ -3717,6 +3747,11 @@ es.put("LuminaDigestTitle", "Resumen de no leídos");
         es.put("LuminaSecCheckupValueNotSet", "Not set");
         es.put("LuminaSecCheckupValueUnknown", "Tap to view");
         es.put("LuminaThemePreviewChatTitle", "Chat de LuminaGram");
+                es.put("LuminaBubbleHeader", "Burbujas de mensaje");
+        es.put("LuminaHideReactions", "Ocultar reacciones");
+        es.put("LuminaHideReactionsInfo", "Oculta los botones de reacción bajo los mensajes sin dejar espacio vacío.");
+        es.put("LuminaWideChannelPosts", "Publicaciones anchas de canal");
+        es.put("LuminaWideChannelPostsInfo", "Muestra las publicaciones de canales de difusión con todo el ancho disponible para una lectura cómoda.");
         T.put("es", es);
 
         // ---- Portuguese (Brazil) — key is pt-br ----
@@ -4220,6 +4255,11 @@ ptBr.put("LuminaDigestTitle", "Resumo de não lidas");
         ptBr.put("LuminaSecCheckupValueNotSet", "Not set");
         ptBr.put("LuminaSecCheckupValueUnknown", "Tap to view");
         ptBr.put("LuminaThemePreviewChatTitle", "Conversa do LuminaGram");
+                ptBr.put("LuminaBubbleHeader", "Balões de mensagem");
+        ptBr.put("LuminaHideReactions", "Ocultar reações");
+        ptBr.put("LuminaHideReactionsInfo", "Oculta os botões de reação abaixo das mensagens sem deixar espaço vazio.");
+        ptBr.put("LuminaWideChannelPosts", "Posts largos de canal");
+        ptBr.put("LuminaWideChannelPostsInfo", "Exibe os posts de canais de transmissão em toda a largura disponível para melhor leitura.");
         T.put("pt-br", ptBr);
 
         // ---- Indonesian ----
@@ -4723,6 +4763,11 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         id.put("LuminaSecCheckupValueNotSet", "Not set");
         id.put("LuminaSecCheckupValueUnknown", "Tap to view");
         id.put("LuminaThemePreviewChatTitle", "Obrolan LuminaGram");
+                id.put("LuminaBubbleHeader", "Balon pesan");
+        id.put("LuminaHideReactions", "Sembunyikan reaksi");
+        id.put("LuminaHideReactionsInfo", "Menyembunyikan tombol reaksi di bawah pesan tanpa menyisakan ruang kosong.");
+        id.put("LuminaWideChannelPosts", "Postingan kanal lebar");
+        id.put("LuminaWideChannelPostsInfo", "Menampilkan postingan kanal siaran selebar mungkin untuk tata letak yang nyaman dibaca.");
         T.put("id", id);
     }
 

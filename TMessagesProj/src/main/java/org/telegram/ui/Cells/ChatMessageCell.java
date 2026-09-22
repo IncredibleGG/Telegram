@@ -7824,6 +7824,19 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (dualLanguageWidth > 0) {
                     backgroundWidth = Math.max(backgroundWidth, dualLanguageWidth + getExtraTextX() * 2 + dp(2));
                 }
+                // LuminaGram: Wide Channel Posts -- render incoming broadcast-channel text posts at
+                // (near) full available width for a reading-style layout. Only ever widens the
+                // bubble (never shrinks), so default OFF = stock width and there is no clipping.
+                if (LuminaConfig.wideChannelPosts
+                        && currentPosition == null
+                        && messageObject.type == MessageObject.TYPE_TEXT
+                        && !messageObject.isOutOwner()
+                        && !messageObject.isSponsored()
+                        && ChatObject.isChannelAndNotMegaGroup(currentChat)
+                        && maxWidth > backgroundWidth) {
+                    backgroundWidth = maxWidth;
+                    availableTimeWidth = backgroundWidth - dp(31);
+                }
                 // LuminaGram: decide whether the ORIGINAL (main text) is folded for this long bilingual message.
                 computeOriginalFold(messageObject);
                 if (messageObject.isSponsored()) {
