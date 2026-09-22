@@ -666,6 +666,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int newContactRiskRow;
     private int chatDateRow;
     private int chatIdRow;
+    private int recentActionsRow;
+    // LuminaGram: real creation date (unix seconds) from message #1; 0 = unknown/not loaded.
+    private int luminaChatCreationDate;
+    private boolean luminaChatCreationDateRequested;
     private int luminaPrivateNoteRow;
     private int noteRow;
     private int locationRow;
@@ -4560,6 +4564,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(fragment);
             } else if (position == settingsRow) {
                 editItem.performClick();
+            } else if (position == recentActionsRow) {
+                if (currentChat != null) {
+                    presentFragment(new ChannelAdminLogActivity(currentChat));
+                }
             } else if (position == botStarsBalanceRow) {
                 presentFragment(new BotStarsActivity(BotStarsActivity.TYPE_STARS, userId));
             } else if (position == botTonBalanceRow) {
@@ -5093,7 +5101,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     return true;
                 } else if (position == chatIdRow) {
                     try {
-                        AndroidUtilities.addToClipboard(String.valueOf(chatId));
+                        AndroidUtilities.addToClipboard(getLuminaChatIdString());
                         BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LuminaLocale.getString(R.string.ProfileChatIdCopied)).show();
                     } catch (Exception e) {
                         FileLog.e(e);
@@ -10679,6 +10687,65 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // LuminaGram FIX 1: canonical Bot-API chat id string.
+    //  - channel / supergroup (ChatObject.isChannel == true): "-100" + rawId
+    //  - basic (legacy) group: "-" + rawId
+    private String getLuminaChatIdString() {
+        if (currentChat == null || chatId == 0) {
+            return String.valueOf(chatId);
+        }
+        if (ChatObject.isChannel(currentChat)) {
+            return "-100" + chatId;
+        }
+        return "-" + chatId;
+    }
+
+    // LuminaGram FIX 2: fetch message #1 to derive the real creation date.
+    // Mirrors ProfileChannelCell: TL_channels_getMessages for channels/supergroups,
+    // TL_messages_getMessages for basic groups; the id list carries plain ints in this fork.
+    private void requestChatCreationDate() {
+        if (luminaChatCreationDateRequested || currentChat == null || chatId == 0) {
+            return;
+        }
+        luminaChatCreationDateRequested = true;
+        // Only channels/supergroups have a per-chat message-id sequence starting at 1.
+        // Basic groups use chat.date (seeded when the row is built), so no fetch here -
+        // fetching message #1 for a basic group would return an unrelated global message.
+        if (ChatObject.isChannel(currentChat)) {
+            TLRPC.TL_channels_getMessages req = new TLRPC.TL_channels_getMessages();
+            req.channel = getMessagesController().getInputChannel(chatId);
+            req.id.add(1);
+            getConnectionsManager().sendRequest(req, (response, error) -> handleChatCreationDateResponse(response));
+        }
+    }
+
+    private void handleChatCreationDateResponse(TLObject response) {
+        if (!(response instanceof TLRPC.messages_Messages)) {
+            return;
+        }
+        TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+        int date = 0;
+        if (res.messages != null) {
+            for (int i = 0; i < res.messages.size(); i++) {
+                TLRPC.Message m = res.messages.get(i);
+                if (m != null && !(m instanceof TLRPC.TL_messageEmpty) && m.id == 1 && m.date > 0) {
+                    date = m.date;
+                    break;
+                }
+            }
+        }
+        if (date <= 0) {
+            return; // message #1 unavailable/deleted: keep "—", never fall back to the join date.
+        }
+        final int creationDate = date;
+        AndroidUtilities.runOnUIThread(() -> {
+            luminaChatCreationDate = creationDate;
+            if (listAdapter != null && chatDateRow >= 0) {
+                listAdapter.notifyItemChanged(chatDateRow);
+            }
+        });
+    }
+
     private void updateRowsIds() {
         updateNotifications(false);
 
@@ -10700,6 +10767,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         luminaPrivateNoteRow = -1;
         chatDateRow = -1;
         chatIdRow = -1;
+        recentActionsRow = -1;
         setUsernameRow = -1;
         bioRow = -1;
         channelRow = -1;
@@ -11151,6 +11219,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             chatIdRow = rowCount++;
             if (LuminaConfig.getBoolean("showChatDate", true) && currentChat != null && currentChat.date > 0) {
                 chatDateRow = rowCount++;
+                // Basic (legacy) group: message ids are account-global (not per-chat),
+                // so message #1 does not apply; the chat's own date IS its real creation
+                // date. Channels/supergroups instead fetch message #1 (see below).
+                if (!ChatObject.isChannel(currentChat)) {
+                    luminaChatCreationDate = currentChat.date;
+                }
+            }
+            // LuminaGram: admin-only "Recent Actions" (event log) row.
+            if (currentChat != null && ChatObject.isChannel(currentChat) && (currentChat.creator || ChatObject.hasAdminRights(currentChat))) {
+                recentActionsRow = rowCount++;
             }
             if (LuminaConfig.getBoolean("showDcId", false) && getProfileDcId() > 0) {
                 dcIdRow = rowCount++;
@@ -13784,16 +13862,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                         detailCell.setTextAndValue(summary, LuminaLocale.getString(R.string.LuminaPrivateNote), false);
                     } else if (position == chatIdRow) {
-                        detailCell.setTextAndValue(String.valueOf(chatId), LuminaLocale.getString(R.string.ProfileChatId), false);
+                        detailCell.setTextAndValue(getLuminaChatIdString(), LuminaLocale.getString(R.string.ProfileChatId), false);
                     } else if (position == chatDateRow) {
+                        // LuminaGram FIX: show the REAL creation date (timestamp of message #1),
+                        // not chat.date (which is the viewer's join date unless they are the creator).
                         String value = "—";
-                        if (currentChat != null && currentChat.date > 0) {
+                        if (luminaChatCreationDate > 0) {
                             try {
-                                value = new SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(new Date(currentChat.date * 1000L));
+                                value = new SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(new Date(luminaChatCreationDate * 1000L));
                             } catch (Exception ignore) {}
                         }
-                        boolean joined = currentChat != null && ChatObject.isChannel(currentChat) && !ChatObject.isNotInChat(currentChat);
-                        detailCell.setTextAndValue(value, LuminaLocale.getString(joined ? R.string.ProfileChatJoined : R.string.ProfileChatCreated), false);
+                        detailCell.setTextAndValue(value, LuminaLocale.getString(R.string.ProfileChatCreated), false);
+                        requestChatCreationDate();
                     } else if (position == phoneRow) {
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);
@@ -14073,6 +14153,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (position == settingsRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.ChannelAdminSettings), R.drawable.msg_customize, position != membersSectionRow - 1);
+                    } else if (position == recentActionsRow) {
+                        textCell.setTextAndIcon(LocaleController.getString(R.string.EventLog), R.drawable.msg_log, false);
                     } else if (position == channelBalanceRow) {
                         final TL_stars.StarsAmount stars_balance = BotStarsController.getInstance(currentAccount).getBotStarsBalance(-chatId);
                         final long ton_balance = BotStarsController.getInstance(currentAccount).getTONBalance(-chatId);
@@ -14643,7 +14725,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == userInfoRow || position == channelInfoRow || position == bioRow) {
                 return VIEW_TYPE_ABOUT_LINK;
             } else if (position == settingsTimerRow || position == settingsKeyRow || position == reportRow || position == reportReactionRow || position == deleteReactionRow ||
-                    position == subscribersRow || position == subscribersRequestsRow || position == administratorsRow || position == settingsRow || position == blockedUsersRow ||
+                    position == subscribersRow || position == subscribersRequestsRow || position == administratorsRow || position == settingsRow || position == recentActionsRow || position == blockedUsersRow ||
                     position == addMemberRow || position == joinRow || position == unblockRow ||
                     position == sendMessageRow || position == notificationRow || position == privacyRow ||
                     position == languageRow || position == dataRow || position == chatRow ||
