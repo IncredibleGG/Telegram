@@ -39,6 +39,8 @@ public class LuminaMediaActivity extends BaseFragment {
     private static final int ID_UNLOCK_AUDIO_SPEED = 3;
     private static final int ID_SAVE_MEDIA_FOLDER = 4;
     private static final int ID_ATTACH_DRAG_REORDER = 5;
+    private static final int ID_SEND_LARGE_PHOTOS = 6;
+    private static final int ID_SWIPE_VIDEO_PIP = 7;
 
     private static final String KEY_KEEP_ORIGINAL_FILENAME = "keepOriginalFilename";
     private static final String KEY_AUTO_PAUSE_BG_VIDEO = "autoPauseBgVideo";
@@ -97,6 +99,35 @@ public class LuminaMediaActivity extends BaseFragment {
         items.add(UItem.asButton(ID_SAVE_MEDIA_FOLDER, LuminaLocale.getString(R.string.LuminaMediaSaveFolder),
                 LuminaConfig.galleryAlbumName()));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaSaveFolderInfo)));
+
+        // --- Outgoing photos (Batch 8 #20) ---
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMediaPhotoHeader)));
+        final int[] qualityValues = {60, 70, 80, 90, 100};
+        final String[] qualityChoices = {"60%", "70%", "80%", "90%", "100%"};
+        int qIndex = 2; // 80 = stock default
+        final int currentQuality = LuminaConfig.outgoingPhotoQuality;
+        for (int i = 0; i < qualityValues.length; i++) {
+            if (qualityValues[i] == currentQuality) {
+                qIndex = i;
+                break;
+            }
+        }
+        items.add(UItem.asSlideView(qualityChoices, qIndex, index -> {
+            if (index >= 0 && index < qualityValues.length) {
+                LuminaConfig.setOutgoingPhotoQuality(qualityValues[index]);
+            }
+        }));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaPhotoQualityInfo)));
+
+        items.add(UItem.asSwitch(ID_SEND_LARGE_PHOTOS, LuminaLocale.getString(R.string.LuminaMediaSendLargePhotos))
+                .setChecked(LuminaConfig.sendLargePhotos));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaSendLargePhotosInfo)));
+
+        // --- Video (Batch 8 #19) ---
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMediaVideoHeader)));
+        items.add(UItem.asSwitch(ID_SWIPE_VIDEO_PIP, LuminaLocale.getString(R.string.LuminaMediaSwipeVideoPip))
+                .setChecked(LuminaConfig.swipeVideoToPip));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaSwipeVideoPipInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -127,6 +158,20 @@ public class LuminaMediaActivity extends BaseFragment {
         }
         if (item.id == ID_ATTACH_DRAG_REORDER) {
             LuminaConfig.putBoolean(KEY_ATTACH_DRAG_REORDER, !LuminaConfig.getBoolean(KEY_ATTACH_DRAG_REORDER, true));
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id == ID_SEND_LARGE_PHOTOS) {
+            LuminaConfig.toggleSendLargePhotos();
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id == ID_SWIPE_VIDEO_PIP) {
+            LuminaConfig.toggleSwipeVideoToPip();
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
             }

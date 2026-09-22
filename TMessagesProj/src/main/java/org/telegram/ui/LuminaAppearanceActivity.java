@@ -55,6 +55,7 @@ public class LuminaAppearanceActivity extends BaseFragment {
     private static final int ITEM_STICKER_SIZE_150 = 8;
     private static final int ITEM_HIDE_REACTIONS = 9;
     private static final int ITEM_WIDE_CHANNEL_POSTS = 10;
+    private static final int ITEM_APP_ICON = 11;
 
     // Sticker render scale (percent); read in ChatMessageCell's sticker layout branch. 100 = unchanged.
     private static final String KEY_STICKER_SCALE = "stickerScale";
@@ -149,6 +150,11 @@ public class LuminaAppearanceActivity extends BaseFragment {
         items.add(UItem.asButton(ITEM_FONT, LuminaLocale.getString(R.string.LuminaAppearanceFont), fontValueText()));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaAppearanceFontInfo)));
 
+        // Launcher icon picker (Batch 8 #24): reuses the existing alternate-icon aliases.
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaAppIconTitle)));
+        items.add(UItem.asButton(ITEM_APP_ICON, LuminaLocale.getString(R.string.LuminaAppIconTitle)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaAppIconInfo)));
+
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaAppearanceStickerSizeHeader)));
         int stickerScale = LuminaConfig.getInt(KEY_STICKER_SCALE, 100);
         items.add(UItem.asRadio(ITEM_STICKER_SIZE_75, stickerScaleLabel(75)).setChecked(stickerScale == 75));
@@ -181,6 +187,9 @@ public class LuminaAppearanceActivity extends BaseFragment {
                 break;
             case ITEM_FONT:
                 showFontPicker();
+                break;
+            case ITEM_APP_ICON:
+                presentFragment(new LuminaAppIconActivity());
                 break;
             case ITEM_STICKER_SIZE_75:
                 setStickerScale(75);

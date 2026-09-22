@@ -11928,4 +11928,17 @@
     <string name="UnsupportedMessageTitle">Unsupported Message</string>
     <string name="UnsupportedMessageMessage">Update Telegram to view this message</string>
     <string name="UnsupportedUpdate">Update</string>
+    <!-- LuminaGram Batch 8: outgoing photo quality/size (#20) -->
+    <string name="LuminaMediaPhotoHeader">Outgoing photos</string>
+    <string name="LuminaMediaPhotoQualityInfo">JPEG quality used when compressing photos you send. Higher looks better but uses more data. The default matches Telegram.</string>
+    <string name="LuminaMediaSendLargePhotos">Send larger photos</string>
+    <string name="LuminaMediaSendLargePhotosInfo">Send photos at a higher resolution with less downscaling. This still uses Telegram\'s normal upload — only the size and compression change.</string>
+    <!-- LuminaGram Batch 8: swipe video to PiP (#19) -->
+    <string name="LuminaMediaVideoHeader">Video</string>
+    <string name="LuminaMediaSwipeVideoPip">Swipe down for picture-in-picture</string>
+    <string name="LuminaMediaSwipeVideoPipInfo">While a video plays full screen, swipe it downward to shrink it into a floating picture-in-picture window.</string>
+    <!-- LuminaGram Batch 8: app icon picker (#24) -->
+    <string name="LuminaAppIconTitle">App icon</string>
+    <string name="LuminaAppIconHeader">Choose icon</string>
+    <string name="LuminaAppIconInfo">Pick the icon shown on your home screen. If a disguise is active, it takes over the icon until you turn it off.</string>
 </resources>

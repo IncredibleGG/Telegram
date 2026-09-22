@@ -19430,6 +19430,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 if (Math.abs(dragY - ev.getY()) > getContainerViewHeight() / 6.0f) {
                     if (enableSwipeToPiP() && (dragY - ev.getY() > 0)) {
                         switchToPip(true);
+                    } else if (LuminaConfig.swipeVideoToPip && (ev.getY() - dragY > 0)
+                            && videoPlayer != null && textureUploaded && checkInlinePermissions()
+                            && !changingTextureView && !switchingInlineMode && !isInline) {
+                        // LuminaGram #19: swipe a full-screen PLAYING video DOWN into picture-in-picture
+                        // instead of closing it. Gated on the same preconditions switchToPip() requires,
+                        // so a photo (or a non-PiP-able video) still falls through to closePhoto() exactly
+                        // as upstream. Default OFF (swipeVideoToPip) => this branch is never entered.
+                        switchToPip(true);
                     } else {
                         closePhoto(true, false);
                     }

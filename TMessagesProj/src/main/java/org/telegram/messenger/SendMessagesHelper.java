@@ -9211,7 +9211,11 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public TLRPC.TL_photo generatePhotoSizes(TLRPC.TL_photo photo, String path, Uri imageUri, boolean highQuality) {
-        Bitmap bitmap = ImageLoader.loadBitmap(path, imageUri, AndroidUtilities.getPhotoSize(highQuality), AndroidUtilities.getPhotoSize(highQuality), true);
+        // LuminaGram #20: opt-in "send larger photos" routes the normal send through Telegram's own
+        // larger decode/scale bounds (getPhotoSize(true) == 2560 vs 1280). Default OFF -> effHighQuality
+        // == highQuality, so the decode + scale below are byte-identical to upstream.
+        final boolean effHighQuality = highQuality || LuminaConfig.sendLargePhotos;
+        Bitmap bitmap = ImageLoader.loadBitmap(path, imageUri, AndroidUtilities.getPhotoSize(effHighQuality), AndroidUtilities.getPhotoSize(effHighQuality), true);
         if (bitmap == null) {
             bitmap = ImageLoader.loadBitmap(path, imageUri, 800, 800, true);
         }
@@ -9223,7 +9227,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (highQuality) {
             size = ImageLoader.scaleAndSaveImage(null, bitmap, Bitmap.CompressFormat.JPEG, true, AndroidUtilities.getPhotoSize(highQuality), AndroidUtilities.getPhotoSize(highQuality), 99, false, 101, 101, false);
         } else {
-            size = ImageLoader.scaleAndSaveImage(bitmap, AndroidUtilities.getPhotoSize(highQuality), AndroidUtilities.getPhotoSize(highQuality), true, 80, false, 101, 101);
+            // LuminaGram #20: user-configurable JPEG quality (default 80 = stock) and, when "send larger"
+            // is on, the larger 2560 bound via effHighQuality. Still the NORMAL upload pipeline.
+            size = ImageLoader.scaleAndSaveImage(bitmap, AndroidUtilities.getPhotoSize(effHighQuality), AndroidUtilities.getPhotoSize(effHighQuality), true, LuminaConfig.outgoingPhotoQuality, false, 101, 101);
         }
         if (size != null) {
             sizes.add(size);

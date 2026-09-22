@@ -111,6 +111,20 @@ public class LuminaConfig {
     // Render incoming broadcast-channel text posts at (near) full available width (reading layout).
     public static boolean wideChannelPosts;
 
+    // ---- Outgoing photo quality / size (Batch 8 #20) ----
+    // JPEG quality used when compressing a photo you SEND, plus a "send larger" toggle that
+    // routes the standard send through Telegram's own larger decode/scale bounds (2560 vs 1280).
+    // Both go through the NORMAL upload pipeline; only the compression/resize params change.
+    // Defaults are exactly the stock values: quality 80, sendLargePhotos OFF -> byte-identical
+    // to upstream. outgoingPhotoQuality is initialised to 80 at declaration so even the degraded
+    // prefs-load path (preferences == null) still sends at the stock quality.
+    public static int outgoingPhotoQuality = 80;
+    public static boolean sendLargePhotos;
+    // ---- Swipe-down video -> picture-in-picture (Batch 8 #19) ----
+    // When ON, swiping a full-screen playing video downward drops it into PiP instead of closing
+    // the viewer. Default OFF = stock behavior (swipe closes). Read once at gesture-release time.
+    public static boolean swipeVideoToPip;
+
     // ---- Message filter (Batch 4 #22) ----
     // A user keyword list; incoming messages whose visible text matches any keyword are dropped
     // from the to-be-displayed list before it is built (pure client-side display filter -- the
@@ -156,6 +170,9 @@ public class LuminaConfig {
                 betaChannel = preferences.getBoolean("betaChannel", false);
                 hideReactions = preferences.getBoolean("hideReactions", false);
                 wideChannelPosts = preferences.getBoolean("wideChannelPosts", false);
+                outgoingPhotoQuality = preferences.getInt("outgoingPhotoQuality", 80);
+                sendLargePhotos = preferences.getBoolean("sendLargePhotos", false);
+                swipeVideoToPip = preferences.getBoolean("swipeVideoToPip", false);
                 reloadMessageFilter();
 
                 configLoaded = true;
@@ -899,6 +916,34 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("wideChannelPosts", wideChannelPosts ^= true).apply();
+    }
+
+    /**
+     * Outgoing-photo JPEG quality (Batch 8 #20). Clamped to a sane 1..100 range; anything out of
+     * range falls back to the stock 80 so a bad value can never produce a broken/empty JPEG.
+     */
+    public static void setOutgoingPhotoQuality(int quality) {
+        if (quality < 1 || quality > 100) {
+            quality = 80;
+        }
+        outgoingPhotoQuality = quality;
+        putInt("outgoingPhotoQuality", quality);
+    }
+
+    /** Send photos with less downscaling (default OFF = stock behavior). */
+    public static void toggleSendLargePhotos() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("sendLargePhotos", sendLargePhotos ^= true).apply();
+    }
+
+    /** Swipe a full-screen playing video down into PiP (default OFF = stock behavior). */
+    public static void toggleSwipeVideoToPip() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("swipeVideoToPip", swipeVideoToPip ^= true).apply();
     }
 
     public static void toggleTranslateBeforeSend() {
