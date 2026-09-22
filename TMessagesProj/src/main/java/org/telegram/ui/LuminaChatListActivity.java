@@ -49,6 +49,9 @@ public class LuminaChatListActivity extends BaseFragment {
     private static final int ID_PREVIEW_3 = 11;
     private static final int ID_DISABLE_SWIPE = 12;
     private static final int ID_HIDE_DELETE_SWIPE = 13;
+    private static final int ID_HIDE_ALLCHATS = 14;
+    private static final int ID_WIDE_TABS = 15;
+    private static final int ID_REMEMBER_FOLDER = 16;
 
     private UniversalRecyclerView listView;
 
@@ -123,6 +126,17 @@ public class LuminaChatListActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_HIDE_DELETE_SWIPE, LuminaLocale.getString(R.string.LuminaChatListHideDeleteSwipe))
                 .setChecked(LuminaConfig.getBoolean("hideDeleteSwipe", false)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaChatListHideDeleteSwipeInfo)));
+
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaFolderTabsHeader)));
+        items.add(UItem.asSwitch(ID_HIDE_ALLCHATS, LuminaLocale.getString(R.string.LuminaHideAllChatsTab))
+                .setChecked(LuminaConfig.getBoolean("hideAllChatsTab", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaHideAllChatsTabInfo)));
+        items.add(UItem.asSwitch(ID_WIDE_TABS, LuminaLocale.getString(R.string.LuminaWideFolderTabs))
+                .setChecked(LuminaConfig.getBoolean("wideFolderTabs", true)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaWideFolderTabsInfo)));
+        items.add(UItem.asSwitch(ID_REMEMBER_FOLDER, LuminaLocale.getString(R.string.LuminaRememberLastFolder))
+                .setChecked(LuminaConfig.getBoolean("rememberLastFolder", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaRememberLastFolderInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -160,6 +174,15 @@ public class LuminaChatListActivity extends BaseFragment {
                 break;
             case ID_HIDE_DELETE_SWIPE:
                 LuminaConfig.putBoolean("hideDeleteSwipe", !LuminaConfig.getBoolean("hideDeleteSwipe", false));
+                break;
+            case ID_HIDE_ALLCHATS:
+                LuminaConfig.putBoolean("hideAllChatsTab", !LuminaConfig.getBoolean("hideAllChatsTab", false));
+                break;
+            case ID_WIDE_TABS:
+                LuminaConfig.putBoolean("wideFolderTabs", !LuminaConfig.getBoolean("wideFolderTabs", true));
+                break;
+            case ID_REMEMBER_FOLDER:
+                LuminaConfig.putBoolean("rememberLastFolder", !LuminaConfig.getBoolean("rememberLastFolder", false));
                 break;
             case ID_STORIES_OFF:
                 LuminaConfig.toggleStoriesFullyOff();

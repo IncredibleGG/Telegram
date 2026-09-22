@@ -57,6 +57,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
@@ -1543,6 +1544,7 @@ public class FilterTabsView extends FrameLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (!tabs.isEmpty()) {
             final int width = MeasureSpec.getSize(widthMeasureSpec) - listViewPaddingH * 2;
+            final boolean luminaWide = LuminaConfig.getBoolean("wideFolderTabs", true); // LuminaGram #8
             Tab firstTab = findDefaultTab();
             if (firstTab != null) {
                 firstTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
@@ -1551,7 +1553,23 @@ public class FilterTabsView extends FrameLayout {
                 int trueTabsWidth = allTabsWidth - tabWidth;
                 trueTabsWidth += firstTab.getWidth(false);
                 int prevWidth = additionalTabWidth;
-                additionalTabWidth = trueTabsWidth < width ? (width - trueTabsWidth) / tabs.size() : 0;
+                additionalTabWidth = (luminaWide && trueTabsWidth < width) ? (width - trueTabsWidth) / tabs.size() : 0;
+                if (prevWidth != additionalTabWidth) {
+                    ignoreLayout = true;
+                    RecyclerView.ItemAnimator animator = listView.getItemAnimator();
+                    listView.setItemAnimator(null);
+                    adapter.notifyDataSetChanged();
+                    listView.setItemAnimator(animator);
+                    ignoreLayout = false;
+                }
+                updateTabsWidths();
+                invalidated = false;
+            } else {
+                // LuminaGram #4: the default "All Chats" tab is hidden, so there is no tab for the
+                // short-title swap. Still distribute the strip width across the remaining folder
+                // tabs, honoring the wide-tabs toggle.
+                int prevWidth = additionalTabWidth;
+                additionalTabWidth = (luminaWide && allTabsWidth < width) ? (width - allTabsWidth) / tabs.size() : 0;
                 if (prevWidth != additionalTabWidth) {
                     ignoreLayout = true;
                     RecyclerView.ItemAnimator animator = listView.getItemAnimator();

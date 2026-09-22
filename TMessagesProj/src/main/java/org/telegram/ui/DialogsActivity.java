@@ -6846,6 +6846,41 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // LuminaGram #5 (Remember last folder) + #4 (Hide "All Chats"). Snapshot the saved id at
+    // construction so the normal startup switchToCurrentSelectedMode() (which persists the current
+    // folder) cannot clobber it before we read it. Default (both toggles off) does nothing.
+    private boolean luminaStartupFolderApplied;
+    private final int luminaSavedFolderStableId = LuminaConfig.getInt("lastFolderStableId", -1);
+
+    private void applyLuminaStartupFolder() {
+        if (filterTabsView == null || viewPages == null || viewPages.length == 0) {
+            return;
+        }
+        final boolean remember = LuminaConfig.getBoolean("rememberLastFolder", false);
+        final boolean hideAll = LuminaConfig.getBoolean("hideAllChatsTab", false);
+        boolean applied = false;
+        if (remember && !luminaStartupFolderApplied && luminaSavedFolderStableId != -1
+                && filterTabsView.getCurrentTabStableId() != luminaSavedFolderStableId
+                && filterTabsView.selectTabWithStableId(luminaSavedFolderStableId)) {
+            applied = true;
+        }
+        luminaStartupFolderApplied = true;
+        if (!applied && hideAll && filterTabsView.getTabsCount() > 0) {
+            final ArrayList<MessagesController.DialogFilter> fs = getMessagesController().getDialogFilters();
+            final int sel = viewPages[0].selectedType;
+            if (sel >= 0 && sel < fs.size() && fs.get(sel).isDefault()) {
+                // The default "All Chats" tab is hidden but its content is selected: land on the
+                // first visible folder so the user is never stranded on a hidden tab.
+                filterTabsView.selectTabWithStableId(filterTabsView.getStableId(0));
+                applied = true;
+            }
+        }
+        if (applied) {
+            viewPages[0].selectedType = filterTabsView.getCurrentTabId();
+            switchToCurrentSelectedMode(false);
+        }
+    }
+
     public void switchToCurrentSelectedMode(boolean animated) {
         for (int a = 0; a < viewPages.length; a++) {
             viewPages[a].listView.stopScroll();
@@ -6855,6 +6890,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         MessagesController.DialogFilter filter = getMessagesController().getDialogFilters().get(viewPages[a].selectedType);
+        if (LuminaConfig.getBoolean("rememberLastFolder", false)) {
+            // LuminaGram #5: remember the folder currently in view (by the tab strip's stable id).
+            LuminaConfig.putInt("lastFolderStableId", filter.isDefault() ? 0 : filter.localId);
+        }
         if (filter.isDefault()) {
             viewPages[a].dialogsType = initialDialogsType;
             viewPages[a].listView.updatePullState();
@@ -6929,6 +6968,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 filterTabsView.removeTabs();
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     if (filters.get(a).isDefault()) {
+                        if (LuminaConfig.getBoolean("hideAllChatsTab", false)) {
+                            continue; // LuminaGram #4: hide the "All Chats" folder tab
+                        }
                         filterTabsView.addTab(a, 0, LocaleController.getString(R.string.FilterAllChats), null, false, true, filters.get(a).locked);
                     } else {
                         final MessagesController.DialogFilter filter = filters.get(a);
@@ -6963,6 +7005,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (filterTabsView.isLocked(filterTabsView.getCurrentTabId())) {
                     filterTabsView.selectFirstTab();
+                }
+                if (updateCurrentTab) {
+                    applyLuminaStartupFolder(); // LuminaGram #5 / #4
                 }
             }
         } else {

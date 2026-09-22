@@ -11240,6 +11240,13 @@
     <string name="LuminaChatListDisableSwipeInfo">Turns off the horizontal swipe on chat-list rows, so no swipe action (archive, read, mute, pin or delete) can be triggered by sliding a chat.</string>
     <string name="LuminaChatListHideDeleteSwipe">Hide delete swipe action</string>
     <string name="LuminaChatListHideDeleteSwipeInfo">When your swipe action is set to Delete, disables the swipe so a chat can\'t be deleted by accident. Other swipe actions keep working.</string>
+    <string name="LuminaFolderTabsHeader">Folder tabs</string>
+    <string name="LuminaHideAllChatsTab">Hide the \"All Chats\" tab</string>
+    <string name="LuminaHideAllChatsTabInfo">Removes the \"All Chats\" tab from the folder row. The app opens to your first folder instead.</string>
+    <string name="LuminaWideFolderTabs">Wide folder tabs</string>
+    <string name="LuminaWideFolderTabsInfo">Stretches the folder tabs to evenly fill the full width of the screen. Turn off for compact tabs sized to their labels.</string>
+    <string name="LuminaRememberLastFolder">Remember last folder</string>
+    <string name="LuminaRememberLastFolderInfo">Reopen to the folder you were last viewing instead of always starting on \"All Chats\".</string>
     <!-- LuminaGram privacy / stealth -->
     <string name="LuminaPrivacyTitle">Privacy &amp; Stealth</string>
     <string name="LuminaPrivacyGhostHeader">Ghost mode</string>
