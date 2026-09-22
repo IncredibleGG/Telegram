@@ -111,6 +111,15 @@ public class LuminaConfig {
     // Render incoming broadcast-channel text posts at (near) full available width (reading layout).
     public static boolean wideChannelPosts;
 
+    // ---- Message filter (Batch 4 #22) ----
+    // A user keyword list; incoming messages whose visible text matches any keyword are dropped
+    // from the to-be-displayed list before it is built (pure client-side display filter -- the
+    // user's own choice, never content-locking; nothing is deleted server-side). Persisted as a
+    // newline-joined string under KEY_MESSAGE_FILTER and cached as a lowercased List for the
+    // per-message check. Default = empty list = no filtering (stock behavior).
+    public static final String KEY_MESSAGE_FILTER = "messageFilterKeywords";
+    public static java.util.List<String> messageFilterKeywords = new java.util.ArrayList<>();
+
     static {
         loadConfig();
     }
@@ -147,6 +156,7 @@ public class LuminaConfig {
                 betaChannel = preferences.getBoolean("betaChannel", false);
                 hideReactions = preferences.getBoolean("hideReactions", false);
                 wideChannelPosts = preferences.getBoolean("wideChannelPosts", false);
+                reloadMessageFilter();
 
                 configLoaded = true;
             } catch (Throwable e) {
@@ -227,6 +237,81 @@ public class LuminaConfig {
         }
         chatListPreviewLines = lines;
         putInt("chatListPreviewLines", lines);
+    }
+
+    // ---- Message filter (Batch 4 #22) helpers ----
+
+    /** Rebuild the cached, lowercased keyword list from the persisted newline-joined string. */
+    public static void reloadMessageFilter() {
+        final java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        final String raw = getString(KEY_MESSAGE_FILTER, "");
+        if (raw != null && raw.length() > 0) {
+            final String[] lines = raw.split("\n");
+            for (String line : lines) {
+                if (line == null) {
+                    continue;
+                }
+                final String t = line.trim();
+                if (t.length() > 0) {
+                    out.add(t.toLowerCase());
+                }
+            }
+        }
+        messageFilterKeywords = out;
+    }
+
+    /** True when the user has at least one filter keyword configured. */
+    public static boolean hasMessageFilter() {
+        final java.util.List<String> kws = messageFilterKeywords;
+        return kws != null && !kws.isEmpty();
+    }
+
+    /**
+     * True when this message's visible text contains any filter keyword (case-insensitive
+     * substring). Purely a display decision -- nothing is deleted server-side.
+     */
+    public static boolean isMessageFiltered(MessageObject mo) {
+        final java.util.List<String> kws = messageFilterKeywords;
+        if (mo == null || kws == null || kws.isEmpty()) {
+            return false;
+        }
+        try {
+            final StringBuilder sb = new StringBuilder();
+            if (mo.messageOwner != null && mo.messageOwner.message != null) {
+                sb.append(mo.messageOwner.message);
+            }
+            if (mo.caption != null) {
+                sb.append(' ').append(mo.caption);
+            }
+            if (sb.length() == 0 && mo.messageText != null) {
+                sb.append(mo.messageText);
+            }
+            if (sb.length() == 0) {
+                return false;
+            }
+            final String hay = sb.toString().toLowerCase();
+            for (int i = 0; i < kws.size(); i++) {
+                final String k = kws.get(i);
+                if (k.length() > 0 && hay.contains(k)) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        return false;
+    }
+
+    /** Drop every keyword-matched message from a to-be-displayed list, in place. */
+    public static void filterMessages(java.util.List<MessageObject> list) {
+        final java.util.List<String> kws = messageFilterKeywords;
+        if (list == null || list.isEmpty() || kws == null || kws.isEmpty()) {
+            return;
+        }
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (isMessageFiltered(list.get(i))) {
+                list.remove(i);
+            }
+        }
     }
 
     // True only when {@code key} has actually been written to the prefs (as opposed to

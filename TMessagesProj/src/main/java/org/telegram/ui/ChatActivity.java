@@ -1950,6 +1950,19 @@ public class ChatActivity extends BaseFragment implements
             } else {
                 return;
             }
+            // LuminaGram #14: double-tap your OWN editable message to enter edit mode instead of
+            // sending the double-tap reaction. Reuses the standard edit path. Default OFF, so when
+            // the flag is false this whole block is skipped and behavior is byte-identical to stock.
+            if (LuminaConfig.getBoolean("doubleTapEditOwn", false)
+                    && messageObject != null && messageObject.isOutOwner()
+                    && messageObject.canEditMessage(currentChat)
+                    && (chatActivityEnterView == null || !chatActivityEnterView.hasAudioToSend())
+                    && messageObject.getDialogId() != mergeDialogId
+                    && messageObject.type != MessageObject.TYPE_STORY
+                    && messageObject.type != MessageObject.TYPE_POLL) {
+                startEditingMessageObject(messageObject);
+                return;
+            }
             if (messageObject.isSecret() || !messageObject.canSetReaction() || messageObject.isExpiredStory() || messageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
                 return;
             }
@@ -4008,7 +4021,8 @@ public class ChatActivity extends BaseFragment implements
                     });
                 } else if (id == call || id == video_call) {
                     if (currentUser != null && getParentActivity() != null) {
-                        VoIPHelper.startCall(currentUser, id == video_call, userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance());
+                        final boolean video = id == video_call;
+                        luminaStartCall(() -> VoIPHelper.startCall(currentUser, video, userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance()));
                     }
                 } else if (id == text_bold) {
                     if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
@@ -20615,6 +20629,9 @@ public class ChatActivity extends BaseFragment implements
             postponedScrollToLastMessageQueryIndex = 0;
         }
         ArrayList<MessageObject> messArr = (ArrayList<MessageObject>) args[2];
+        // LuminaGram #22: drop keyword-filtered messages before the visible list is built
+        // (pure client-side display filter). Default empty list = no-op.
+        LuminaConfig.filterMessages(messArr);
 
         boolean universalNotify = false;
         HashMap<Integer, MessageObject> oldMessages = null;
@@ -25457,6 +25474,8 @@ public class ChatActivity extends BaseFragment implements
     }
     private void processNewMessages(ArrayList<MessageObject> arr, final boolean animatedFromBottom) {
         FileLog.d("processNewMessages " + arr.size() + " messages");
+        // LuminaGram #22: drop keyword-filtered messages from incoming batch (display filter).
+        LuminaConfig.filterMessages(arr);
 
         final boolean isBot = UserObject.isBot(currentUser);
         final boolean isStreamingTopic = isBot && BotForumHelper.getInstance(currentAccount).isStreamingTopic(getDialogId(), getTopicId());
@@ -34260,7 +34279,8 @@ public class ChatActivity extends BaseFragment implements
             }
             case OPTION_CALL_AGAIN: {
                 if (currentUser != null) {
-                    VoIPHelper.startCall(currentUser, selectedObject.isVideoCall(), userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance());
+                    final boolean video = selectedObject.isVideoCall();
+                    luminaStartCall(() -> VoIPHelper.startCall(currentUser, video, userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance()));
                 }
                 break;
             }
@@ -39961,7 +39981,8 @@ public class ChatActivity extends BaseFragment implements
                     progressDialog.setOnCancelListener(di -> getConnectionsManager().cancelRequest(reqId, true));
                     progressDialog.showDelayed(600);
                 } else if (currentUser != null) {
-                    VoIPHelper.startCall(currentUser, messageObject.isVideoCall(), userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance());
+                    final boolean video = messageObject.isVideoCall();
+                    luminaStartCall(() -> VoIPHelper.startCall(currentUser, video, userInfo != null && userInfo.video_calls_available, getParentActivity(), getMessagesController().getUserFull(currentUser.id), getAccountInstance()));
                 }
             } else {
                 createMenu(cell, true, false, otherX, otherY, messageObject.isMusic(), false);
@@ -45477,10 +45498,10 @@ public class ChatActivity extends BaseFragment implements
                 options.add(R.drawable.msg_discussion, getString(R.string.SendMessage), () -> presentFragment(ChatActivity.of(user.id)));
                 if (!UserObject.isUserSelf(user)) {
                     options.add(R.drawable.msg_calls, getString(R.string.VoiceCallViaTelegram), () -> {
-                        VoIPHelper.startCall(user, false, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance());
+                        luminaStartCall(() -> VoIPHelper.startCall(user, false, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance()));
                     });
                     options.add(R.drawable.msg_videocall, getString(R.string.VideoCallViaTelegram), () -> {
-                        VoIPHelper.startCall(user, true, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance());
+                        luminaStartCall(() -> VoIPHelper.startCall(user, true, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance()));
                     });
                 }
                 options.add(R.drawable.msg_calls_regular, getString(R.string.VoiceCallViaCarrier), () -> {
@@ -46825,6 +46846,63 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_WELCOME_REVERT);
             icons.add(R.drawable.outline_revert_24);
         }
+        // LuminaGram #17: context-menu customization -- drop the standard actions the user has
+        // hidden. Post-pass over the parallel lists keeps items/options/icons perfectly in sync
+        // (same index removed from all three). Default: every flag true -> nothing removed.
+        applyLuminaMenuVisibility(options, items, icons);
+    }
+
+    // LuminaGram #17: remove user-hidden standard long-press actions from the three parallel
+    // menu lists. Runs after fillMessageMenu has populated them, so it cannot desync them.
+    private void applyLuminaMenuVisibility(ArrayList<Integer> options, ArrayList<CharSequence> items, ArrayList<Integer> icons) {
+        if (options == null) {
+            return;
+        }
+        for (int i = options.size() - 1; i >= 0; i--) {
+            final int opt = options.get(i);
+            boolean hidden = false;
+            if (opt == OPTION_REPLY) {
+                hidden = !LuminaConfig.getBoolean("menuShowReply", true);
+            } else if (opt == OPTION_COPY) {
+                hidden = !LuminaConfig.getBoolean("menuShowCopy", true);
+            } else if (opt == OPTION_FORWARD) {
+                hidden = !LuminaConfig.getBoolean("menuShowForward", true);
+            } else if (opt == OPTION_PIN || opt == OPTION_UNPIN) {
+                hidden = !LuminaConfig.getBoolean("menuShowPin", true);
+            } else if (opt == OPTION_REPORT_CHAT) {
+                hidden = !LuminaConfig.getBoolean("menuShowReport", true);
+            } else if (opt == OPTION_SAVE_TO_GALLERY || opt == OPTION_SAVE_TO_GALLERY2 || opt == OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC) {
+                hidden = !LuminaConfig.getBoolean("menuShowSaveDownload", true);
+            }
+            if (hidden) {
+                options.remove(i);
+                if (items != null && i < items.size()) {
+                    items.remove(i);
+                }
+                if (icons != null && i < icons.size()) {
+                    icons.remove(i);
+                }
+            }
+        }
+    }
+
+    // LuminaGram #16: optional confirm dialog before STARTING a voice/video call. Default OFF,
+    // so start.run() fires immediately and the flow is byte-identical to stock. When ON, the
+    // real call start is deferred behind a confirm dialog (distinct from any send-voice confirm).
+    private void luminaStartCall(Runnable start) {
+        if (start == null) {
+            return;
+        }
+        if (!LuminaConfig.getBoolean("confirmStartCall", false) || getParentActivity() == null) {
+            start.run();
+            return;
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+        b.setTitle(LuminaLocale.getString(R.string.LuminaCallConfirmTitle));
+        b.setMessage(LuminaLocale.getString(R.string.LuminaCallConfirmMessage));
+        b.setPositiveButton(LuminaLocale.getString(R.string.LuminaCallConfirmStart), (dialog, which) -> start.run());
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        b.show();
     }
 
     // LuminaGram: read-only message details popup. Everything shown is already on the

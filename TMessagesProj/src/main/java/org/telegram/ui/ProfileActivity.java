@@ -6169,11 +6169,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         showDialog(new GiftSheet(getContext(), currentAccount, getDialogId(), null, null));
     }
 
+    // LuminaGram #16: optional confirm dialog before STARTING a voice/video call. Default OFF,
+    // so start.run() fires immediately and the flow is byte-identical to stock.
+    private void luminaStartCall(Runnable start) {
+        if (start == null) {
+            return;
+        }
+        if (!LuminaConfig.getBoolean("confirmStartCall", false) || getParentActivity() == null) {
+            start.run();
+            return;
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity(), resourcesProvider);
+        b.setTitle(LuminaLocale.getString(R.string.LuminaCallConfirmTitle));
+        b.setMessage(LuminaLocale.getString(R.string.LuminaCallConfirmMessage));
+        b.setPositiveButton(LuminaLocale.getString(R.string.LuminaCallConfirmStart), (dialog, which) -> start.run());
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        b.show();
+    }
+
     private void onCallClicked(boolean isVideoCall) {
         if (userId != 0) {
             TLRPC.User user = getMessagesController().getUser(userId);
             if (user != null) {
-                VoIPHelper.startCall(user, isVideoCall, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance());
+                luminaStartCall(() -> VoIPHelper.startCall(user, isVideoCall, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance()));
             }
         } else if (chatId != 0) {
             ChatObject.Call call = getMessagesController().getGroupCall(chatId, false);
@@ -7506,12 +7524,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (userInfo != null && userInfo.phone_calls_available) {
                     o.add(R.drawable.msg_calls, getString(R.string.CallViaTelegram), () -> {
                         if (getParentActivity() == null) return;
-                        VoIPHelper.startCall(user, false, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance());
+                        luminaStartCall(() -> VoIPHelper.startCall(user, false, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance()));
                     });
                     if (userInfo.video_calls_available) {
                         o.add(R.drawable.msg_videocall, getString(R.string.VideoCallViaTelegram), () -> {
                             if (getParentActivity() == null) return;
-                            VoIPHelper.startCall(user, true, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance());
+                            luminaStartCall(() -> VoIPHelper.startCall(user, true, userInfo != null && userInfo.video_calls_available, getParentActivity(), userInfo, getAccountInstance()));
                         });
                     }
                 }

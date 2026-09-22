@@ -85,6 +85,30 @@ public class LuminaChatActivity extends BaseFragment {
         items.add(UItem.asSwitch(7, LuminaLocale.getString(R.string.LuminaShowChatDate)).setChecked(LuminaConfig.getBoolean("showChatDate", true)));
         items.add(UItem.asSwitch(9, LuminaLocale.getString(R.string.LuminaTimeWithSeconds)).setChecked(LuminaConfig.getBoolean("timeWithSeconds", false)));
         items.add(UItem.asShadow(null));
+
+        // ---- Batch 4: interaction (double-tap edit #14, call confirm #16) ----
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaInteractionHeader)));
+        items.add(UItem.asSwitch(20, LuminaLocale.getString(R.string.LuminaDoubleTapEdit)).setChecked(LuminaConfig.getBoolean("doubleTapEditOwn", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaDoubleTapEditInfo)));
+        items.add(UItem.asSwitch(21, LuminaLocale.getString(R.string.LuminaConfirmStartCall)).setChecked(LuminaConfig.getBoolean("confirmStartCall", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaConfirmStartCallInfo)));
+
+        // ---- Batch 4 #17: which standard long-press menu actions to show ----
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMenuVisibilityHeader)));
+        items.add(UItem.asSwitch(22, LuminaLocale.getString(R.string.LuminaMenuShowReply)).setChecked(LuminaConfig.getBoolean("menuShowReply", true)));
+        items.add(UItem.asSwitch(23, LuminaLocale.getString(R.string.LuminaMenuShowCopy)).setChecked(LuminaConfig.getBoolean("menuShowCopy", true)));
+        items.add(UItem.asSwitch(24, LuminaLocale.getString(R.string.LuminaMenuShowForward)).setChecked(LuminaConfig.getBoolean("menuShowForward", true)));
+        items.add(UItem.asSwitch(25, LuminaLocale.getString(R.string.LuminaMenuShowPin)).setChecked(LuminaConfig.getBoolean("menuShowPin", true)));
+        items.add(UItem.asSwitch(26, LuminaLocale.getString(R.string.LuminaMenuShowReport)).setChecked(LuminaConfig.getBoolean("menuShowReport", true)));
+        items.add(UItem.asSwitch(27, LuminaLocale.getString(R.string.LuminaMenuShowSaveDownload)).setChecked(LuminaConfig.getBoolean("menuShowSaveDownload", true)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMenuVisibilityInfo)));
+
+        // ---- Batch 4 #22: message keyword filter ----
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMessageFilter)));
+        items.add(UItem.asButton(28, LuminaLocale.getString(R.string.LuminaMessageFilterManage)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMessageFilterInfo)));
+
+        items.add(UItem.asShadow(null));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -132,6 +156,33 @@ public class LuminaChatActivity extends BaseFragment {
                 LuminaConfig.putBoolean("timeWithSeconds", !LuminaConfig.getBoolean("timeWithSeconds", false));
                 LocaleController.getInstance().recreateFormatters();
                 break;
+            case 20:
+                LuminaConfig.putBoolean("doubleTapEditOwn", !LuminaConfig.getBoolean("doubleTapEditOwn", false));
+                break;
+            case 21:
+                LuminaConfig.putBoolean("confirmStartCall", !LuminaConfig.getBoolean("confirmStartCall", false));
+                break;
+            case 22:
+                LuminaConfig.putBoolean("menuShowReply", !LuminaConfig.getBoolean("menuShowReply", true));
+                break;
+            case 23:
+                LuminaConfig.putBoolean("menuShowCopy", !LuminaConfig.getBoolean("menuShowCopy", true));
+                break;
+            case 24:
+                LuminaConfig.putBoolean("menuShowForward", !LuminaConfig.getBoolean("menuShowForward", true));
+                break;
+            case 25:
+                LuminaConfig.putBoolean("menuShowPin", !LuminaConfig.getBoolean("menuShowPin", true));
+                break;
+            case 26:
+                LuminaConfig.putBoolean("menuShowReport", !LuminaConfig.getBoolean("menuShowReport", true));
+                break;
+            case 27:
+                LuminaConfig.putBoolean("menuShowSaveDownload", !LuminaConfig.getBoolean("menuShowSaveDownload", true));
+                break;
+            case 28:
+                presentFragment(new LuminaMessageFilterActivity());
+                return;
         }
         if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
