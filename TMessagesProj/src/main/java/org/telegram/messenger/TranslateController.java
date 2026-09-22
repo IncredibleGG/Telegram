@@ -125,7 +125,12 @@ public class TranslateController extends BaseController {
     private Boolean contextTranslateEnabled;
 
     public boolean isChatTranslateEnabled() {
-        if (!getMessagesController().isTranslationsAutoEnabled()) {
+        // LuminaGram: only honor Telegram's server "translations_auto_enabled" flag when
+        // the Telegram provider is selected. Our default provider translates whole chats
+        // through its own engine, so Telegram disabling that flag server-side must not
+        // hide our translation UI (mirrors the Premium bypass in isFeatureAvailable()).
+        if ("telegram".equals(LuminaTranslators.current().id())
+                && !getMessagesController().isTranslationsAutoEnabled()) {
             return false;
         }
         if (chatTranslateEnabled == null) {
@@ -135,7 +140,11 @@ public class TranslateController extends BaseController {
     }
 
     public boolean isContextTranslateEnabled() {
-        if (!getMessagesController().isTranslationsManualEnabled()) {
+        // LuminaGram: see isChatTranslateEnabled(). Honor Telegram's server manual-
+        // translation flag only for the Telegram provider; our own engine powers per-
+        // message translate regardless of Telegram's server switch.
+        if ("telegram".equals(LuminaTranslators.current().id())
+                && !getMessagesController().isTranslationsManualEnabled()) {
             return false;
         }
         if (contextTranslateEnabled == null) {
