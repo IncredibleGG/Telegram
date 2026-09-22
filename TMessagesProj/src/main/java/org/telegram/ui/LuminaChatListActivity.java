@@ -43,6 +43,12 @@ public class LuminaChatListActivity extends BaseFragment {
     private static final int ID_RECENCY_DOT = 5;
     private static final int ID_STORIES_OFF = 6;
     private static final int ID_STORIES_POST = 7;
+    private static final int ID_PREVIEW_AUTO = 8;
+    private static final int ID_PREVIEW_1 = 9;
+    private static final int ID_PREVIEW_2 = 10;
+    private static final int ID_PREVIEW_3 = 11;
+    private static final int ID_DISABLE_SWIPE = 12;
+    private static final int ID_HIDE_DELETE_SWIPE = 13;
 
     private UniversalRecyclerView listView;
 
@@ -78,6 +84,14 @@ public class LuminaChatListActivity extends BaseFragment {
                 .setChecked(LuminaConfig.getBoolean("compactChatList", false)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaCompactChatListInfo)));
 
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaChatListPreviewLinesHeader)));
+        int previewLines = LuminaConfig.chatListPreviewLines;
+        items.add(UItem.asRadio(ID_PREVIEW_AUTO, LuminaLocale.getString(R.string.LuminaChatListPreviewLinesAuto)).setChecked(previewLines == 0));
+        items.add(UItem.asRadio(ID_PREVIEW_1, LuminaLocale.getString(R.string.LuminaChatListPreviewLines1)).setChecked(previewLines == 1));
+        items.add(UItem.asRadio(ID_PREVIEW_2, LuminaLocale.getString(R.string.LuminaChatListPreviewLines2)).setChecked(previewLines == 2));
+        items.add(UItem.asRadio(ID_PREVIEW_3, LuminaLocale.getString(R.string.LuminaChatListPreviewLines3)).setChecked(previewLines == 3));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaChatListPreviewLinesInfo)));
+
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaChatListBadgesHeader)));
         items.add(UItem.asSwitch(ID_HIDE_MUTE, LuminaLocale.getString(R.string.LuminaHideMuteIcon))
                 .setChecked(LuminaConfig.getBoolean("hideMuteIcon", false)));
@@ -101,6 +115,14 @@ public class LuminaChatListActivity extends BaseFragment {
                     .setChecked(LuminaConfig.storiesHidePostEntry));
             items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaStoriesHidePostEntryInfo)));
         }
+
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaChatListSwipeHeader)));
+        items.add(UItem.asSwitch(ID_DISABLE_SWIPE, LuminaLocale.getString(R.string.LuminaChatListDisableSwipe))
+                .setChecked(LuminaConfig.getBoolean("disableChatListSwipe", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaChatListDisableSwipeInfo)));
+        items.add(UItem.asSwitch(ID_HIDE_DELETE_SWIPE, LuminaLocale.getString(R.string.LuminaChatListHideDeleteSwipe))
+                .setChecked(LuminaConfig.getBoolean("hideDeleteSwipe", false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaChatListHideDeleteSwipeInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -120,6 +142,24 @@ public class LuminaChatListActivity extends BaseFragment {
                 break;
             case ID_RECENCY_DOT:
                 LuminaConfig.putBoolean("chatListRecencyDot", !LuminaConfig.getBoolean("chatListRecencyDot", false));
+                break;
+            case ID_PREVIEW_AUTO:
+                LuminaConfig.setChatListPreviewLines(0);
+                break;
+            case ID_PREVIEW_1:
+                LuminaConfig.setChatListPreviewLines(1);
+                break;
+            case ID_PREVIEW_2:
+                LuminaConfig.setChatListPreviewLines(2);
+                break;
+            case ID_PREVIEW_3:
+                LuminaConfig.setChatListPreviewLines(3);
+                break;
+            case ID_DISABLE_SWIPE:
+                LuminaConfig.putBoolean("disableChatListSwipe", !LuminaConfig.getBoolean("disableChatListSwipe", false));
+                break;
+            case ID_HIDE_DELETE_SWIPE:
+                LuminaConfig.putBoolean("hideDeleteSwipe", !LuminaConfig.getBoolean("hideDeleteSwipe", false));
                 break;
             case ID_STORIES_OFF:
                 LuminaConfig.toggleStoriesFullyOff();

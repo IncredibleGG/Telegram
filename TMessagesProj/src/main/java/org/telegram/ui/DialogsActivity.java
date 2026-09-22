@@ -2444,6 +2444,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     swipeFolderBack = false;
                     return makeMovementFlags(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0);
                 } else {
+                    // LuminaGram #11 (chat-list swipe gates; default off = unchanged behavior):
+                    if (LuminaConfig.getBoolean("disableChatListSwipe", false)) {
+                        return 0;
+                    }
+                    if (LuminaConfig.getBoolean("hideDeleteSwipe", false)
+                            && SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_DELETE) {
+                        return 0;
+                    }
                     int currentDialogsType = initialDialogsType;
                     try {
                         currentDialogsType = parentPage.dialogsAdapter.getDialogsType();

@@ -11227,6 +11227,19 @@
     <string name="LuminaChatListOnlineDotInfo">Shows a small green dot on the avatar of one-on-one chats whose contact is currently online.</string>
     <string name="LuminaChatListRecencyDot">Last-seen recency dot</string>
     <string name="LuminaChatListRecencyDotInfo">Colors the avatar dot in one-on-one chats by how recently the contact was last seen: green when online now, yellow within an hour, orange within a day. No dot for older or hidden last-seen. The online dot toggle still controls the green (online) case.</string>
+    <!-- LuminaGram #6: chat-list message preview line count -->
+    <string name="LuminaChatListPreviewLinesHeader">Message preview</string>
+    <string name="LuminaChatListPreviewLinesAuto">Automatic</string>
+    <string name="LuminaChatListPreviewLines1">1 line</string>
+    <string name="LuminaChatListPreviewLines2">2 lines</string>
+    <string name="LuminaChatListPreviewLines3">3 lines</string>
+    <string name="LuminaChatListPreviewLinesInfo">How many lines of the last message to show in each chat-list row. Automatic follows Telegram\'s own list layout.</string>
+    <!-- LuminaGram #11: chat-list swipe gates -->
+    <string name="LuminaChatListSwipeHeader">Swipe</string>
+    <string name="LuminaChatListDisableSwipe">Disable swipe gesture</string>
+    <string name="LuminaChatListDisableSwipeInfo">Turns off the horizontal swipe on chat-list rows, so no swipe action (archive, read, mute, pin or delete) can be triggered by sliding a chat.</string>
+    <string name="LuminaChatListHideDeleteSwipe">Hide delete swipe action</string>
+    <string name="LuminaChatListHideDeleteSwipeInfo">When your swipe action is set to Delete, disables the swipe so a chat can\'t be deleted by accident. Other swipe actions keep working.</string>
     <!-- LuminaGram privacy / stealth -->
     <string name="LuminaPrivacyTitle">Privacy &amp; Stealth</string>
     <string name="LuminaPrivacyGhostHeader">Ghost mode</string>

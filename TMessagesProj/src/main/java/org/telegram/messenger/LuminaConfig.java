@@ -27,6 +27,7 @@ public class LuminaConfig {
     // Sub-option of storiesFullyOff: also hide the entries that post YOUR OWN story.
     public static boolean storiesHidePostEntry;
     public static boolean compactChatList;
+    public static int chatListPreviewLines;      // 0 = follow Telegram list layout (default); 1/2/3 = forced preview lines
 
     // ---- Translation ----
     public static boolean translateBeforeSend;
@@ -119,6 +120,7 @@ public class LuminaConfig {
                 storiesFullyOff = preferences.getBoolean("storiesFullyOff", false);
                 storiesHidePostEntry = preferences.getBoolean("storiesHidePostEntry", false);
                 compactChatList = preferences.getBoolean("compactChatList", false);
+                chatListPreviewLines = preferences.getInt("chatListPreviewLines", 0);
                 translateBeforeSend = preferences.getBoolean("translateBeforeSend", true);
                 translateBeforeSendConfirm = preferences.getBoolean("translateBeforeSendConfirm", false);
                 materialYouEnabled = preferences.getBoolean("materialYouEnabled", false);
@@ -205,6 +207,16 @@ public class LuminaConfig {
             return;
         }
         editor.putInt(key, value).apply();
+    }
+
+    // LuminaGram #6: keep the cached static field in sync with the persisted value so the
+    // per-frame chat-list render path (DialogCell) reads a plain field, never SharedPreferences.
+    public static void setChatListPreviewLines(int lines) {
+        if (lines < 0 || lines > 3) {
+            lines = 0;
+        }
+        chatListPreviewLines = lines;
+        putInt("chatListPreviewLines", lines);
     }
 
     // True only when {@code key} has actually been written to the prefs (as opposed to
