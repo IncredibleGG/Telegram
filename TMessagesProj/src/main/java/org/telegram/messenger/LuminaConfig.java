@@ -28,6 +28,12 @@ public class LuminaConfig {
     public static boolean storiesHidePostEntry;
     public static boolean compactChatList;
     public static int chatListPreviewLines;      // 0 = follow Telegram list layout (default); 1/2/3 = forced preview lines
+    // ---- Folders at bottom (Feature #1) ----
+    // Move the chat-folder tab strip to the BOTTOM of the chat list (one-handed reach).
+    // Default OFF = exact stock top position with byte-identical layout/measure. Read from the
+    // DialogsActivity measure/position hot paths, so it is a cached static field refreshed by
+    // loadConfig(); a wrong value at worst only relocates the folder strip, never the list data.
+    public static boolean foldersAtBottom;
 
     // ---- Translation ----
     public static boolean translateBeforeSend;
@@ -163,6 +169,7 @@ public class LuminaConfig {
                 storiesHidePostEntry = preferences.getBoolean("storiesHidePostEntry", false);
                 compactChatList = preferences.getBoolean("compactChatList", false);
                 chatListPreviewLines = preferences.getInt("chatListPreviewLines", 0);
+                foldersAtBottom = preferences.getBoolean("foldersAtBottom", false);
                 translateBeforeSend = preferences.getBoolean("translateBeforeSend", true);
                 translateBeforeSendConfirm = preferences.getBoolean("translateBeforeSendConfirm", false);
                 materialYouEnabled = preferences.getBoolean("materialYouEnabled", false);
@@ -825,6 +832,13 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("hideTabs", hideTabs ^= true).apply();
+    }
+
+    public static void toggleFoldersAtBottom() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("foldersAtBottom", foldersAtBottom ^= true).apply();
     }
 
     public static void toggleHideStories() {

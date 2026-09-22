@@ -2081,8 +2081,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             final float filterTabsVisibility = getFilterTabsVisibilityFactor(false);
             final float topPanelsVisibility = topPanelLayout != null ? topPanelLayout.getMetadata().getTotalVisibility() : 0f;
 
-            t += (int) (dp(36 + 14) * filterTabsVisibility);
-            additionalPadding += (int) (dp(36 + 14) * filterTabsVisibility);
+            if (!LuminaConfig.foldersAtBottom) {
+                t += (int) (dp(36 + 14) * filterTabsVisibility);
+                additionalPadding += (int) (dp(36 + 14) * filterTabsVisibility);
+            }
 
             if (topPanelLayout != null) {
                 final int h = (int) topPanelLayout.getAnimatedHeightWithPadding(lerp((float) dp(14), dp(7), filterTabsVisibility));
@@ -5187,7 +5189,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             filterTabsViewBackground.setPadding(dp(6.666f));
             filterTabsView.setPadding(0, dp(7), 0, dp(7));
             filterTabsView.setBlurredBackground(filterTabsViewBackground);
-            contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.TOP, 4, 0, 4, 0));
+            if (LuminaConfig.foldersAtBottom) {
+                contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.BOTTOM, 4, 0, 4, 0));
+            } else {
+                contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.TOP, 4, 0, 4, 0));
+            }
         }
 
         if (fragmentSearchField != null) {
@@ -6640,10 +6646,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         float fadeViewT = totalOffset;
 
         if (filterTabsView != null) {
-            filterTabsView.setTranslationY(totalOffset - searchOffset);
-            filtersTabVisibility = filterTabsView.getAlpha();
-            filtersTabHeight = dp(36 + 7) * filtersTabVisibility;
-            totalOffset += filtersTabHeight;
+            if (LuminaConfig.foldersAtBottom) {
+                // Bottom-anchored: the strip frame gravity is BOTTOM, so translationY is measured up
+                // from the parent bottom edge. Park it just above the nav bar / main-tabs bar and do
+                // NOT fold filtersTabHeight into totalOffset (top panels must stay where they are).
+                filterTabsView.setTranslationY(-(navigationBarHeight + additionNavigationBarHeight));
+                filtersTabVisibility = filterTabsView.getAlpha();
+            } else {
+                filterTabsView.setTranslationY(totalOffset - searchOffset);
+                filtersTabVisibility = filterTabsView.getAlpha();
+                filtersTabHeight = dp(36 + 7) * filtersTabVisibility;
+                totalOffset += filtersTabHeight;
+            }
         }
 
         if (topPanelLayout != null) {
@@ -14528,6 +14542,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int calculateListViewPaddingBottom() {
+        if (LuminaConfig.foldersAtBottom && commentView == null && communityId == 0) {
+            // Bottom-anchored folder strip occupies dp(36 + 14) above the nav / main-tabs bar;
+            // reserve it so list content is not hidden behind the strip.
+            return navigationBarHeight + additionNavigationBarHeight + dp(36 + 14);
+        }
         if (commentView != null) {
             return (int) (windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9) + chatInputViewsContainer.getInputBubbleHeight() + dp(7) + dp(2));
         } else if (communityId != 0) {

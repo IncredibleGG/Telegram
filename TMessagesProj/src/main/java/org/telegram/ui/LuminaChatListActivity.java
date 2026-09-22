@@ -52,6 +52,7 @@ public class LuminaChatListActivity extends BaseFragment {
     private static final int ID_HIDE_ALLCHATS = 14;
     private static final int ID_WIDE_TABS = 15;
     private static final int ID_REMEMBER_FOLDER = 16;
+    private static final int ID_FOLDERS_BOTTOM = 17;
 
     private UniversalRecyclerView listView;
 
@@ -137,6 +138,9 @@ public class LuminaChatListActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_REMEMBER_FOLDER, LuminaLocale.getString(R.string.LuminaRememberLastFolder))
                 .setChecked(LuminaConfig.getBoolean("rememberLastFolder", false)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaRememberLastFolderInfo)));
+        items.add(UItem.asSwitch(ID_FOLDERS_BOTTOM, LuminaLocale.getString(R.string.LuminaFoldersAtBottom))
+                .setChecked(LuminaConfig.foldersAtBottom));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaFoldersAtBottomInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -183,6 +187,9 @@ public class LuminaChatListActivity extends BaseFragment {
                 break;
             case ID_REMEMBER_FOLDER:
                 LuminaConfig.putBoolean("rememberLastFolder", !LuminaConfig.getBoolean("rememberLastFolder", false));
+                break;
+            case ID_FOLDERS_BOTTOM:
+                LuminaConfig.toggleFoldersAtBottom();
                 break;
             case ID_STORIES_OFF:
                 LuminaConfig.toggleStoriesFullyOff();

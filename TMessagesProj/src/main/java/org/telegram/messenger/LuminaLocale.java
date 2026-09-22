@@ -4874,6 +4874,7 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         loadBatch7();
         loadBatch8();
         loadBatch9();
+        loadBatch10();
     }
 
     /**
@@ -4974,6 +4975,18 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         put3("es", "LuminaMediaTransferHeader", "Transferencia de archivos grandes", "LuminaMediaTransferBoost", "Acelerar transferencias grandes (experimental)", "LuminaMediaTransferBoostInfo", "Usa partes de subida y descarga más grandes (hasta 512 KB por parte de subida y 1 MB por parte de descarga) para mover archivos grandes con menos solicitudes. Experimental: desactívalo si la subida o la descarga fallan en tu conexión. Desactivado coincide exactamente con Telegram.");
         put3("pt-br", "LuminaMediaTransferHeader", "Transferência de arquivos grandes", "LuminaMediaTransferBoost", "Acelerar transferências grandes (experimental)", "LuminaMediaTransferBoostInfo", "Usa partes de envio e download maiores (até 512 KB por parte de envio e 1 MB por parte de download) para mover arquivos grandes com menos solicitações. Experimental — desative se o envio ou o download apresentarem problemas na sua conexão. Desativado é idêntico ao Telegram.");
         put3("id", "LuminaMediaTransferHeader", "Transfer file besar", "LuminaMediaTransferBoost", "Percepat transfer besar (eksperimental)", "LuminaMediaTransferBoostInfo", "Menggunakan bagian unggah dan unduh yang lebih besar (hingga 512 KB per bagian unggah dan 1 MB per bagian unduh) agar file besar berpindah dengan lebih sedikit permintaan. Eksperimental — matikan jika unggahan atau unduhan bermasalah pada koneksi Anda. Saat mati, sama persis dengan Telegram.");
+    }
+
+    private static void loadBatch10() {
+        put3("zh-hans", "LuminaFoldersAtBottom", "文件夹标签置底", "LuminaFoldersAtBottomInfo", "将文件夹标签栏移到聊天列表底部，方便单手操作。关闭时与 Telegram 完全一致（标签位于顶部）。");
+        put3("zh-hant", "LuminaFoldersAtBottom", "資料夾分頁置底", "LuminaFoldersAtBottomInfo", "將資料夾分頁列移到聊天清單底部，方便單手操作。關閉時與 Telegram 完全一致（分頁位於頂部）。");
+        put3("ar", "LuminaFoldersAtBottom", "المجلدات في الأسفل", "LuminaFoldersAtBottomInfo", "ينقل صف علامات المجلدات إلى أسفل قائمة المحادثات للوصول بيد واحدة. عند الإيقاف يطابق تيليجرام تماماً (العلامات في الأعلى).");
+        put3("ru", "LuminaFoldersAtBottom", "Папки внизу", "LuminaFoldersAtBottomInfo", "Перемещает ряд вкладок папок вниз списка чатов для удобства одной рукой. В выключенном состоянии всё точно как в Telegram (вкладки сверху).");
+        put3("fa", "LuminaFoldersAtBottom", "پوشه‌ها در پایین", "LuminaFoldersAtBottomInfo", "ردیف زبانه‌های پوشه را به پایین فهرست گفتگوها منتقل می‌کند تا با یک دست در دسترس باشد. در حالت خاموش دقیقاً مانند تلگرام است (زبانه‌ها در بالا).");
+        put3("tr", "LuminaFoldersAtBottom", "Klasörler altta", "LuminaFoldersAtBottomInfo", "Klasör sekmesi satırını tek elle erişim için sohbet listesinin altına taşır. Kapalıyken Telegram ile birebir aynıdır (sekmeler üstte).");
+        put3("es", "LuminaFoldersAtBottom", "Carpetas abajo", "LuminaFoldersAtBottomInfo", "Mueve la fila de pestañas de carpetas a la parte inferior de la lista de chats para usarla con una mano. Desactivado coincide exactamente con Telegram (pestañas arriba).");
+        put3("pt-br", "LuminaFoldersAtBottom", "Pastas embaixo", "LuminaFoldersAtBottomInfo", "Move a linha de abas de pastas para a parte inferior da lista de conversas para uso com uma mão. Desativado é idêntico ao Telegram (abas no topo).");
+        put3("id", "LuminaFoldersAtBottom", "Folder di bawah", "LuminaFoldersAtBottomInfo", "Memindahkan baris tab folder ke bagian bawah daftar obrolan agar mudah dijangkau satu tangan. Saat mati, sama persis dengan Telegram (tab di atas).");
     }
 
     public static String getString(@StringRes int res) {

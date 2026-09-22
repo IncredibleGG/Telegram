@@ -11247,6 +11247,8 @@
     <string name="LuminaWideFolderTabsInfo">Stretches the folder tabs to evenly fill the full width of the screen. Turn off for compact tabs sized to their labels.</string>
     <string name="LuminaRememberLastFolder">Remember last folder</string>
     <string name="LuminaRememberLastFolderInfo">Reopen to the folder you were last viewing instead of always starting on \"All Chats\".</string>
+    <string name="LuminaFoldersAtBottom">Folders at bottom</string>
+    <string name="LuminaFoldersAtBottomInfo">Moves the folder tab row to the bottom of the chat list for one-handed reach. Off matches Telegram exactly (tabs at the top).</string>
     <!-- LuminaGram privacy / stealth -->
     <string name="LuminaPrivacyTitle">Privacy &amp; Stealth</string>
     <string name="LuminaPrivacyGhostHeader">Ghost mode</string>
