@@ -2990,6 +2990,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             @Override
             public void setVisibility(int visibility) {
+                // LuminaGram #10: when opted in, the voice/video record button is never shown.
+                // Only the become-visible transition is intercepted; GONE always passes through.
+                // The text send button is still allowed to appear (see checkSendButton gate).
+                if (visibility == VISIBLE && LuminaConfig.getBoolean("hideVoiceButton", false)) {
+                    visibility = GONE;
+                }
                 super.setVisibility(visibility);
             }
 
@@ -5710,6 +5716,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (delegate != null) {
                 delegate.onTextSelectionChanged(selStart, selEnd);
             }
+            if (ChatActivityEnterView.this.messageEditText == this) {
+                luminaUpdateFormatBar(selStart, selEnd); // LuminaGram #23
+            }
         }
 
         @Override
@@ -5884,6 +5893,85 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     }
 
+    // ---- LuminaGram #23: quick formatting toolbar (Bold / Italic / Link) ----
+    // A small optional bar shown above the input while text is selected. It reuses the composer's
+    // existing inline-style actions (makeSelectedBold / makeSelectedItalic / makeSelectedUrl), the
+    // same ones the native selection menu and Ctrl+B/I/K shortcuts use. Created lazily only when the
+    // feature is enabled; default OFF means it is never built and nothing about the input changes.
+    private LinearLayout luminaFormatBar;
+
+    private TextView luminaMakeFormatButton(String label, boolean bold, boolean italic, Runnable action) {
+        TextView tv = new TextView(getContext());
+        tv.setText(label);
+        tv.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        tv.setGravity(Gravity.CENTER);
+        tv.setTypeface(bold ? android.graphics.Typeface.DEFAULT_BOLD : android.graphics.Typeface.DEFAULT,
+                italic ? android.graphics.Typeface.ITALIC : android.graphics.Typeface.NORMAL);
+        tv.setMinWidth(dp(38));
+        tv.setPadding(dp(8), 0, dp(8), 0);
+        // Non-focusable so tapping a button never steals focus from the input and collapses the
+        // selection the formatting action needs.
+        tv.setFocusable(false);
+        tv.setFocusableInTouchMode(false);
+        tv.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector)));
+        tv.setOnClickListener(v -> {
+            if (action != null) {
+                action.run();
+            }
+        });
+        return tv;
+    }
+
+    private void luminaCreateFormatBar() {
+        if (luminaFormatBar != null || messageEditTextContainer == null || getContext() == null) {
+            return;
+        }
+        if (!LuminaConfig.getBoolean("formattingBar", false)) {
+            return;
+        }
+        LinearLayout bar = new LinearLayout(getContext());
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setVisibility(View.GONE);
+        bar.setBackgroundColor(getThemedColor(Theme.key_chat_messagePanelBackground));
+        bar.addView(luminaMakeFormatButton("B", true, false, () -> {
+            if (messageEditText != null) {
+                messageEditText.makeSelectedBold();
+            }
+        }), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
+        bar.addView(luminaMakeFormatButton("I", false, true, () -> {
+            if (messageEditText != null) {
+                messageEditText.makeSelectedItalic();
+            }
+        }), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
+        bar.addView(luminaMakeFormatButton("\uD83D\uDD17", false, false, () -> {
+            if (messageEditText != null) {
+                messageEditText.makeSelectedUrl();
+            }
+        }), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
+        luminaFormatBar = bar;
+        // TOP-gravity, fixed 32dp height: the bottom-aligned input is always at least this tall, so
+        // the container's measured height never grows and the layout does not shift when it appears.
+        messageEditTextContainer.addView(bar, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 32, Gravity.TOP | Gravity.LEFT, 52, 2, 0, 0));
+    }
+
+    private void luminaUpdateFormatBar(int selStart, int selEnd) {
+        if (!LuminaConfig.getBoolean("formattingBar", false)) {
+            if (luminaFormatBar != null) {
+                luminaFormatBar.setVisibility(View.GONE);
+            }
+            return;
+        }
+        if (luminaFormatBar == null) {
+            luminaCreateFormatBar();
+        }
+        if (luminaFormatBar == null) {
+            return;
+        }
+        boolean hasSelection = selStart >= 0 && selEnd >= 0 && selStart != selEnd;
+        luminaFormatBar.setVisibility(hasSelection ? View.VISIBLE : View.GONE);
+    }
+
     /**
      * Samsung keyboard does not support incognito mode.
      * Also on samsung keyboard when the EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING flag is set, the keyboard starts to lag.
@@ -6024,8 +6112,20 @@ public class ChatActivityEnterView extends FrameLayout implements
             flags |= EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING;
         }
         messageEditText.setIncludeFontPadding(false);
+        // LuminaGram #15: optional "send with Return key". When on, the soft keyboard shows a
+        // Send action and Return sends (IME_ACTION_SEND is handled by the OnEditorActionListener
+        // below) instead of inserting a newline -> the multi-line input flag is dropped so the
+        // Return key is delivered as the action. Default OFF keeps the stock multi-line behavior.
+        boolean luminaSendByReturn = LuminaConfig.getBoolean("sendByReturnKey", false);
+        if (luminaSendByReturn) {
+            flags |= EditorInfo.IME_ACTION_SEND;
+        }
         messageEditText.setImeOptions(flags);
-        messageEditText.setInputType(commonInputType = (messageEditText.getInputType() | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES | EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE));
+        int luminaInputType = messageEditText.getInputType() | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES;
+        if (!luminaSendByReturn) {
+            luminaInputType |= EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE;
+        }
+        messageEditText.setInputType(commonInputType = luminaInputType);
         updateFieldHint(false);
         messageEditText.setSingleLine(false);
         messageEditText.setMaxLines(6);
@@ -9322,7 +9422,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 Theme.setSelectorDrawableColor(sendButton.getBackground(), Color.argb(24, Color.red(color), Color.green(color), Color.blue(color)), true);
             }
 
-            if (audioVideoButtonContainer.getVisibility() == VISIBLE || slowModeButton.getVisibility() == VISIBLE || showBotButton || showSendButton || animatorIsBlockedByStreaming.getValue()) {
+            if (audioVideoButtonContainer.getVisibility() == VISIBLE || slowModeButton.getVisibility() == VISIBLE || showBotButton || showSendButton || animatorIsBlockedByStreaming.getValue() || LuminaConfig.getBoolean("hideVoiceButton", false)) { // LuminaGram #10: mic hidden -> still show send button
                 if (animated) {
                     if (runningAnimationType == 1 && caption == null || runningAnimationType == 3 && caption != null) {
                         return;
@@ -12325,7 +12425,8 @@ public class ChatActivityEnterView extends FrameLayout implements
             && !isEditingMessage() && !isRecordingAudioVideo()
             && (recordedAudioPanel == null || recordedAudioPanel.getVisibility() != View.VISIBLE)
             && (isLiveComment || (!ChatObject.isChannelAndNotMegaGroup(chat) || ChatObject.canSendAsPeers(chat)) && !ChatObject.isMonoForum(chat))
-            && (parentFragment == null || parentFragment.getChatMode() != ChatActivity.MODE_WELCOME_MESSAGES);
+            && (parentFragment == null || parentFragment.getChatMode() != ChatActivity.MODE_WELCOME_MESSAGES)
+            && !LuminaConfig.getBoolean("hideSendAsButton", false); // LuminaGram #10
         if (isVisible) {
             createSenderSelectView();
         }

@@ -11826,6 +11826,18 @@
     <string name="LuminaInterfaceComposerHeader">Message field</string>
     <string name="LuminaHideAiButton">Hide AI button in the message field</string>
     <string name="LuminaHideAiButtonInfo">Removes the AI editor button from the message input field. It does not disable AI features elsewhere.</string>
+    <!-- LuminaGram Batch 3: input row detail toggles / send with Return / formatting bar -->
+    <string name="LuminaInputRowHeader">Input row</string>
+    <string name="LuminaHideVoiceButton">Hide voice / video button</string>
+    <string name="LuminaHideVoiceButtonInfo">Removes the voice and video message button from the input row. You can still send text, photos and files.</string>
+    <string name="LuminaHideSendAsButton">Hide send-as button</string>
+    <string name="LuminaHideSendAsButtonInfo">Hides the button that lets you post as one of your channels instead of yourself.</string>
+    <string name="LuminaDisableThanosDelete">No dust delete animation</string>
+    <string name="LuminaDisableThanosDeleteInfo">Deleted messages disappear instantly instead of scattering into dust.</string>
+    <string name="LuminaSendByReturnKey">Send with the Return key</string>
+    <string name="LuminaSendByReturnKeyInfo">The on-screen keyboard shows a Send action, and the Return key sends the message instead of adding a new line.</string>
+    <string name="LuminaFormattingBar">Formatting toolbar</string>
+    <string name="LuminaFormattingBarInfo">Shows Bold, Italic and Link buttons above the input while you have text selected.</string>
     <string name="LuminaExplainMenu">Explain</string>
     <string name="LuminaExplainTitle">Explain this message</string>
     <string name="LuminaExplainNoKey">Set your LLM API key in Translation settings first.</string>

@@ -26541,7 +26541,7 @@ public class ChatActivity extends BaseFragment implements
                         removedIndexes.add(chatAdapter.messagesStartRow + index);
                         if (thanos && !sent && !obj.scheduledSent && removed != null && removed.messageOwner != null && removed.messageOwner.send_state == MessageObject.MESSAGE_SEND_STATE_SENT && currentTime - removed.messageOwner.date >= (currentChat != null || currentUser != null && currentUser.bot ? 2 : 0)) {
                             thanosMessagesIndexes.add(chatAdapter.messagesStartRow + index);
-                            removed.deletedByThanos = LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS);
+                            removed.deletedByThanos = LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS) && !LuminaConfig.getBoolean("disableThanosDelete", false); // LuminaGram #10
                         }
                     }
                     if (removed.getGroupId() != 0) {
@@ -44817,11 +44817,12 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public boolean supportsThanosEffect() {
-        return ThanosEffect.supports() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS);
+        // LuminaGram #10: opt-out of the "dust" (thanos) delete animation. Default OFF = stock.
+        return ThanosEffect.supports() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS) && !LuminaConfig.getBoolean("disableThanosDelete", false);
     }
 
     public ThanosEffect getChatThanosEffect() {
-        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS) || !ThanosEffect.supports()) {
+        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS) || !ThanosEffect.supports() || LuminaConfig.getBoolean("disableThanosDelete", false)) { // LuminaGram #10
             return null;
         }
         if (chatListThanosEffect == null || chatListThanosEffect.destroyed) {

@@ -59,6 +59,16 @@ public class LuminaConfig {
     // stock button rather than breaking the input row.
     public static boolean hideInputAiButton;
 
+    // ---- Input row / composer (Batch 3) ----
+    // Free-form boolean prefs read directly via getBoolean(...) at their call sites (same
+    // literal-key pattern as disableLinkPreview / confirmSendVoiceVideo), so no cached field is
+    // required. All default false = current stock behavior; each is opt-in from LuminaInterfaceActivity:
+    //   "hideVoiceButton"      #10 hide the voice/video record button (ChatActivityEnterView)
+    //   "hideSendAsButton"     #10 hide the send-as / post-as-channel button (ChatActivityEnterView)
+    //   "disableThanosDelete"  #10 disable the "dust" delete animation (gated in ChatActivity)
+    //   "sendByReturnKey"      #15 soft-keyboard Return sends instead of newline (ChatActivityEnterView)
+    //   "formattingBar"        #23 quick Bold/Italic/Link bar over the input (ChatActivityEnterView)
+
     // ---- Cultural annotation "Explain this message" (Wave) ----
     // Adds an "Explain" action to the message long-press menu that sends the message text to
     // the user's OWN translation LLM (same key/base/model as the LLM translate provider) and

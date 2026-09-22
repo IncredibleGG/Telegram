@@ -38,11 +38,22 @@ public class LuminaInterfaceActivity extends BaseFragment {
     private static final int ID_UNREAD_DIGEST = 4;
     private static final int ID_PHOTO_UPLOAD_DATE = 5;
     private static final int ID_HIDE_AI_BUTTON = 6;
+    // Batch 3 — input row
+    private static final int ID_HIDE_VOICE_BUTTON = 7;
+    private static final int ID_HIDE_SEND_AS = 8;
+    private static final int ID_DISABLE_THANOS = 9;
+    private static final int ID_SEND_BY_RETURN = 10;
+    private static final int ID_FORMATTING_BAR = 11;
 
     private static final String KEY_SYSTEM_EMOJI = "systemEmoji";
     private static final String KEY_CONFIRM_VOICE_VIDEO = "confirmSendVoiceVideo";
     private static final String KEY_DISABLE_NUMBER_ROUNDING = "disableNumberRounding";
     private static final String KEY_PHOTO_UPLOAD_DATE = "showPhotoUploadDate";
+    private static final String KEY_HIDE_VOICE_BUTTON = "hideVoiceButton";
+    private static final String KEY_HIDE_SEND_AS = "hideSendAsButton";
+    private static final String KEY_DISABLE_THANOS = "disableThanosDelete";
+    private static final String KEY_SEND_BY_RETURN = "sendByReturnKey";
+    private static final String KEY_FORMATTING_BAR = "formattingBar";
 
     private UniversalRecyclerView listView;
 
@@ -102,6 +113,23 @@ public class LuminaInterfaceActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_HIDE_AI_BUTTON, LuminaLocale.getString(R.string.LuminaHideAiButton))
                 .setChecked(LuminaConfig.hideInputAiButton));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaHideAiButtonInfo)));
+
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaInputRowHeader)));
+        items.add(UItem.asSwitch(ID_HIDE_VOICE_BUTTON, LuminaLocale.getString(R.string.LuminaHideVoiceButton))
+                .setChecked(LuminaConfig.getBoolean(KEY_HIDE_VOICE_BUTTON, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaHideVoiceButtonInfo)));
+        items.add(UItem.asSwitch(ID_HIDE_SEND_AS, LuminaLocale.getString(R.string.LuminaHideSendAsButton))
+                .setChecked(LuminaConfig.getBoolean(KEY_HIDE_SEND_AS, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaHideSendAsButtonInfo)));
+        items.add(UItem.asSwitch(ID_SEND_BY_RETURN, LuminaLocale.getString(R.string.LuminaSendByReturnKey))
+                .setChecked(LuminaConfig.getBoolean(KEY_SEND_BY_RETURN, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaSendByReturnKeyInfo)));
+        items.add(UItem.asSwitch(ID_FORMATTING_BAR, LuminaLocale.getString(R.string.LuminaFormattingBar))
+                .setChecked(LuminaConfig.getBoolean(KEY_FORMATTING_BAR, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaFormattingBarInfo)));
+        items.add(UItem.asSwitch(ID_DISABLE_THANOS, LuminaLocale.getString(R.string.LuminaDisableThanosDelete))
+                .setChecked(LuminaConfig.getBoolean(KEY_DISABLE_THANOS, false)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaDisableThanosDeleteInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -118,6 +146,21 @@ public class LuminaInterfaceActivity extends BaseFragment {
                 break;
             case ID_PHOTO_UPLOAD_DATE:
                 key = KEY_PHOTO_UPLOAD_DATE;
+                break;
+            case ID_HIDE_VOICE_BUTTON:
+                key = KEY_HIDE_VOICE_BUTTON;
+                break;
+            case ID_HIDE_SEND_AS:
+                key = KEY_HIDE_SEND_AS;
+                break;
+            case ID_DISABLE_THANOS:
+                key = KEY_DISABLE_THANOS;
+                break;
+            case ID_SEND_BY_RETURN:
+                key = KEY_SEND_BY_RETURN;
+                break;
+            case ID_FORMATTING_BAR:
+                key = KEY_FORMATTING_BAR;
                 break;
             case ID_UNREAD_DIGEST:
                 LuminaConfig.putBoolean("unreadDigest", !LuminaConfig.getBoolean("unreadDigest", true));
