@@ -315,7 +315,10 @@ public class FileLoadOperation {
         // recomputed below from the new part size (fewer parts, still within the server limit).
         // When OFF this branch is skipped and downloadChunkSizeBig / the request counts /
         // maxCdnParts are byte-identical to stock. Never applied on the small-chunk fallback.
-        if (LuminaConfig.transferBoost && !forceSmallChunk) {
+        // 13.0 sync: also never applied once this operation runs under upstream's download byte
+        // budget (see start()): there the in-flight bytes are capped by Premium status, so bigger
+        // parts only mean fewer parallel requests. Boost defers to upstream on that path.
+        if (LuminaConfig.transferBoost && !forceSmallChunk && !useDownloadByteBudget) {
             downloadChunkSizeBig = 1024 * 1024;
             maxDownloadRequests = 8;
             maxDownloadRequestsBig = 8;
@@ -878,6 +881,17 @@ public class FileLoadOperation {
                 useDownloadByteBudget = !MessagesController.getInstance(currentAccount).downloadImprovementKillswitch &&
                         totalBytesCount > 0 && key == null && !encryptFile && !isAudioDocument && stream == null &&
                         !isPreloadVideoOperation && !supportsPreloading && preloadPrefixSize == 0;
+                if (useDownloadByteBudget && LuminaConfig.transferBoost) {
+                    // LuminaGram #21 (13.0 sync): upstream caps in-flight bytes per download (2 MB free,
+                    // 16 MB Premium) and derives the request count as budget / part size, so 1 MB boost
+                    // parts would cut a free user from 16 parallel 128 KB requests to 2 -- slower than
+                    // boost OFF. Defer to upstream's new logic: re-derive stock part sizes for this
+                    // operation (updateParams() skips boost while useDownloadByteBudget is set). The
+                    // Premium quota itself is never touched; boost stays active on non-budget paths.
+                    updateParams();
+                    currentDownloadChunkSize = bigChunk ? downloadChunkSizeBig : downloadChunkSize;
+                    currentMaxDownloadRequests = bigChunk ? maxDownloadRequestsBig : maxDownloadRequests;
+                }
                 if (useDownloadByteBudget) {
                     boolean premium = UserConfig.getInstance(currentAccount).isPremium();
                     downloadConnectionsCount = premium ? ConnectionsManager.DownloadConnectionsCount : 2;
