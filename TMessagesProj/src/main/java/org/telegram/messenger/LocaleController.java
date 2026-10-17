@@ -1476,6 +1476,64 @@ public class LocaleController {
         "MigrateOldFolderDescription", "TelegramTones", "WearAuthTitle"
     ));
 
+    // LuminaGram (13.0 sync): upstream's getString/formatString(@StringRes int) now pass key == null
+    // (string resources are stripped from release builds and resolved via string_resource_ids.bin,
+    // so the old getResourceEntryName(res) -> key step is gone). A key-only check would let every
+    // id-only lookup bypass the brand lock, so mirror LUMINA_BRAND_LOCKED_KEYS as a res-id set.
+    // Keep both lists in sync. Compile-time R.string refs: a key upstream removes breaks the build.
+    private static volatile HashSet<Integer> luminaBrandLockedResIds;
+
+    private static HashSet<Integer> getLuminaBrandLockedResIds() {
+        HashSet<Integer> set = luminaBrandLockedResIds;
+        if (set == null) {
+            final int[] ids = new int[] {
+                R.string.AllowFillNumber, R.string.AllowReadCall, R.string.AllowReadCallAndLog, R.string.AllowReadCallLog,
+                R.string.AppLocked, R.string.AppName, R.string.AppNameBeta, R.string.CallAvailableIn2, R.string.CallText,
+                R.string.InviteFriendsHelp, R.string.InviteText2, R.string.InviteToTelegram,
+                R.string.LoginEmailResetMessage, R.string.NoChats, R.string.NotificationContactJoined,
+                R.string.NotificationHiddenChatName, R.string.NotificationHiddenName,
+                R.string.NotificationsPermissionAlertSubtitle, R.string.OptimizingTelegram, R.string.Page1Title,
+                R.string.Page2Message, R.string.Page3Message, R.string.Page4Message, R.string.Page5Message,
+                R.string.Page6Message, R.string.PermissionBackgroundLocation, R.string.PermissionDrawAboveOtherApps,
+                R.string.PermissionDrawAboveOtherAppsGroupCall, R.string.PermissionFSILockscreen,
+                R.string.PermissionNoAudioStorageStory, R.string.PermissionNoAudioVideoWithHint,
+                R.string.PermissionNoAudioWithHint, R.string.PermissionNoBluetoothWithHint,
+                R.string.PermissionNoCameraMicVideo, R.string.PermissionNoCameraWithHint,
+                R.string.PermissionNoContactsSaving, R.string.PermissionNoContactsSharing, R.string.PermissionNoLocation,
+                R.string.PermissionNoLocationFriends, R.string.PermissionNoLocationNavigation,
+                R.string.PermissionNoLocationStory, R.string.PermissionNoStorageAvatar, R.string.PermissionStorageWithHint,
+                R.string.PermissionXiaomiLockscreen, R.string.ProfilePopupNotificationInfo, R.string.SecretChatName,
+                R.string.SentCallCode, R.string.ShareTelegram2, R.string.TelegramFeatures, R.string.TelegramVersion,
+                R.string.UnlockToUse, R.string.UpdateAppAlert, R.string.AgeVerificationNeedCameraPermission,
+                R.string.QRCodePermissionNoCameraWithHint, R.string.VoipNeedCameraPermission,
+                R.string.VoipNeedMicCameraPermissionWithHint, R.string.VoipNeedMicPermissionWithHint, R.string.AppUpdate,
+                R.string.AppUpdateBeta, R.string.UpdateTelegram, R.string.StoryUnsupported,
+                R.string.UnsupportedBlockMessage, R.string.UnsupportedMedia2, R.string.UnsupportedMessageMessage,
+                R.string.ClearingCacheDescription, R.string.ClearTelegramCache, R.string.LocalDatabaseSize,
+                R.string.SdCardAlert, R.string.SdCardErrorDescription, R.string.StorageUsageTelegram,
+                R.string.StorageUsageTelegramLess, R.string.TelegramCacheSize, R.string.ChangePasscodeInfo,
+                R.string.CreatePasscodeInfoPassword, R.string.CreatePasscodeInfoPIN, R.string.EnterYourPasscodeInfo,
+                R.string.EnterYourTelegramPasscode, R.string.MigrateOldFolderDescription, R.string.TelegramTones,
+                R.string.WearAuthTitle
+            };
+            set = new HashSet<>(ids.length * 2);
+            for (int id : ids) {
+                if (id != 0) {
+                    set.add(id);
+                }
+            }
+            luminaBrandLockedResIds = set;
+        }
+        return set;
+    }
+
+    private static boolean isLuminaBrandLocked(String key, int res) {
+        if (key != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
+            return true;
+        }
+        return res != 0 && getLuminaBrandLockedResIds().contains(res);
+    }
+
     // LuminaGram: case-preserving brand swap for LUMINA_BRAND_LOCKED_KEYS values.
     // Cloud-language-pack translations of these stock keys can embed telegram.org (and
     // other *.telegram.org / t.me) URLs; a blind lowercase swap would turn "telegram.org"
@@ -1500,11 +1558,11 @@ public class LocaleController {
     }
 
     private String getStringInternal(String key, String fallback, int res) {
-        final String value = getStringV2(key, res, fallback);
+        String value = getStringV2(key, res, fallback); // LuminaGram: not final (brand swap below)
         if (value == null) {
             return "LOC_ERR:" + key;
         }
-        if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
+        if (value != null && isLuminaBrandLocked(key, res)) {
             value = luminaRebrand(value);
         }
         return value;
@@ -1685,12 +1743,12 @@ public class LocaleController {
 
     private static String formatString(String key, String fallback, int res, Object... args) {
         try {
-            final String value = getInstance().getStringV2(key, res, fallback);
+            String value = getInstance().getStringV2(key, res, fallback); // LuminaGram: not final (brand swap below)
             if (value == null) {
                 return "LOC_ERR: " + key;
             }
 
-            if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
+            if (value != null && isLuminaBrandLocked(key, res)) {
                 value = luminaRebrand(value);
             }
             if (getInstance().currentLocale != null) {
@@ -1714,12 +1772,12 @@ public class LocaleController {
 
     private static CharSequence formatSpannable(String key, String fallback, int res, Object... args) {
         try {
-            final String value = getInstance().getStringV2(key, res, fallback);
+            String value = getInstance().getStringV2(key, res, fallback); // LuminaGram: not final (brand swap below)
             if (value == null) {
                 return "LOC_ERR: " + key;
             }
 
-            if (value != null && LUMINA_BRAND_LOCKED_KEYS.contains(key)) {
+            if (value != null && isLuminaBrandLocked(key, res)) {
                 value = luminaRebrand(value);
             }
             SpannableStringBuilder builder = new SpannableStringBuilder(value);
