@@ -33,10 +33,12 @@ jobs:
         with:
           packages: ''
 
-      - name: Install SDK packages (build-tools 36 / platform 36 / NDK / cmake)
+      - name: Install SDK packages (build-tools 36 / platform 36+35 / NDK / cmake)
+        # 13.0 sync: the androidx media3 submodule (TMessagesProj_Modules/media) compiles
+        # against android-35 and uses AGP's default build-tools, so install those as well.
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          sdkmanager --install "platform-tools" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Decode signing keystore from secret
         env:
@@ -60,6 +62,23 @@ jobs:
           echo "APK: $APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | grep -i "SHA-256"
+
+      - name: Sanity-check APK label, icon and kept strings (aapt2)
+        # 13.0 sync: release builds now shrink resources and discard every string except
+        # AppName/AppNameBeta (+ our disguise launcher labels). Fail fast if that strips the
+        # launcher label/icon instead of shipping an APK that installs as a bare package name.
+        run: |
+          APK=$(ls -t TMessagesProj_AppStandalone/build/outputs/apk/afatFull/standalone/*.apk | head -1)
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$AAPT2" dump badging "$APK" > badging.txt
+          grep -E "^(package:|sdkVersion:|targetSdkVersion:|application-label:|application-icon-[0-9]+:|application:|launchable-activity:)" badging.txt || true
+          grep -q "^application-label:'LuminaGram'" badging.txt || { echo "::error::application-label is not LuminaGram"; exit 1; }
+          grep -qE "^application: label='LuminaGram' icon='[^']+'" badging.txt || { echo "::error::application label/icon missing"; exit 1; }
+          "$AAPT2" dump resources "$APK" > resources.txt
+          for s in AppName LuminaDisguiseAppLabel LuminaDisguiseNotesLabel LuminaDisguiseClockLabel; do
+            grep -qE "string/$s( |$)" resources.txt || { echo "::error::string/$s was stripped from the APK"; exit 1; }
+            echo "kept string/$s"
+          done
 
       - name: Collect APK
         run: |
