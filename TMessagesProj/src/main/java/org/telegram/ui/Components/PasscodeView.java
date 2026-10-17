@@ -1011,7 +1011,9 @@ public class PasscodeView extends FrameLayout implements NotificationCenter.Noti
             // (non-empty) configured code. Any other input, including a normal wrong passcode,
             // falls through to the usual checkPasscode() handling below and behaves normally.
             try {
-                if (LuminaConfig.getBoolean("fakeCrashEnabled", false)) {
+                // 13.0 sync: upstream made PasscodeView reusable as a plain confirmation view
+                // (isAppLock() == false); the duress code only ever applies to the real app lock.
+                if (isAppLock() && LuminaConfig.getBoolean("fakeCrashEnabled", false)) {
                     String fakeCrashCode = LuminaConfig.getString("fakeCrashCode", "");
                     if (fakeCrashCode != null && fakeCrashCode.length() > 0 && fakeCrashCode.equals(password)) {
                         passwordEditText.setText("");
