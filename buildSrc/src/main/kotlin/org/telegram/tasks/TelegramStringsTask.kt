@@ -25,15 +25,24 @@ import java.nio.charset.StandardCharsets
 abstract class TelegramStringsTask : DefaultTask() {
 
     companion object {
+        // LuminaGram: the disguise launcher aliases use these as android:label in
+        // AndroidManifest.xml / AndroidManifest_standalone.xml; like AppName they must
+        // survive the release-build string discard or the launcher label breaks.
+        private val LUMINA_MANIFEST_LABELS = setOf(
+            "LuminaDisguiseAppLabel",
+            "LuminaDisguiseNotesLabel",
+            "LuminaDisguiseClockLabel"
+        )
+
         private val GENERATED_EXCLUSIONS = setOf(
             "AppName",
             "AppNameBeta"
-        )
+        ) + LUMINA_MANIFEST_LABELS
 
         private val STABLE_IDS_EXCLUSIONS = setOf(
             "AppName",
             "AppNameBeta"
-        )
+        ) + LUMINA_MANIFEST_LABELS
 
         private const val STRING_RESOURCE_ID_BASE = 0x7F0FFFFE
     }

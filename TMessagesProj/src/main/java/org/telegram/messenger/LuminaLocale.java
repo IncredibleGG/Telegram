@@ -2,6 +2,8 @@ package org.telegram.messenger;
 
 import androidx.annotation.StringRes;
 
+import org.telegram.utils.localization.Localization;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -4992,14 +4994,56 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
     public static String getString(@StringRes int res) {
         Map<String, String> m = mapForCurrentLanguage();
         if (m != null) {
-            String key = ApplicationLoader.applicationContext
-                    .getResources().getResourceEntryName(res);
-            String v = m.get(key);
+            String key = keyForRes(res);
+            String v = key == null ? null : m.get(key);
             if (v != null) {
                 return v;
             }
         }
         return LocaleController.getString(res);
+    }
+
+    // LuminaGram (13.0 sync): upstream release builds discard every string resource except
+    // AppName/AppNameBeta and serve strings from packed assets, so
+    // getResources().getResourceEntryName(res) throws Resources.NotFoundException there (it only
+    // kept working in debug builds). Map res id -> name.hashCode() through upstream's
+    // string_resource_ids.bin and look the hash up in an index of our own table keys. The
+    // resource-table lookup stays only as a fallback for builds without that asset.
+    private static volatile HashMap<Integer, String> keyByHash;
+
+    private static String keyForRes(@StringRes int res) {
+        if (res == 0) {
+            return null;
+        }
+        final android.content.Context context = ApplicationLoader.applicationContext;
+        final int hash = Localization.getResNameHash(context, res);
+        if (hash != 0) {
+            HashMap<Integer, String> index = keyByHash;
+            if (index == null) {
+                index = buildKeyIndex();
+            }
+            return index.get(hash);
+        }
+        try {
+            return context == null ? null : context.getResources().getResourceEntryName(res);
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    private static synchronized HashMap<Integer, String> buildKeyIndex() {
+        HashMap<Integer, String> index = keyByHash;
+        if (index != null) {
+            return index;
+        }
+        index = new HashMap<>();
+        for (Map<String, String> table : T.values()) {
+            for (String key : table.keySet()) {
+                index.put(key.hashCode(), key);
+            }
+        }
+        keyByHash = index;
+        return index;
     }
 
     private static Map<String, String> mapForCurrentLanguage() {

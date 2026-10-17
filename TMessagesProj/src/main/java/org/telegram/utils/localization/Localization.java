@@ -49,6 +49,26 @@ public class Localization {
         return get(hash);
     }
 
+    /**
+     * LuminaGram: {@code name.hashCode()} of a string resource id, read from
+     * string_resource_ids.bin, or 0 when unknown. Release builds strip the string resources
+     * themselves (tools:discard + shrinkResources), so fork code must not call
+     * getResourceEntryName() on string ids; this is the id -> name bridge that still works.
+     */
+    public static int getResNameHash(Context context, @StringRes int resId) {
+        if (context == null || resId == 0) {
+            return 0;
+        }
+        try {
+            if (rawResBindings == null) {
+                rawResBindings = loadStringResBindings(context);
+            }
+            return rawResBindings.get(resId);
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
     public String getByResName(String resName) {
         if (resName != null) {
             return get(resName.hashCode());
