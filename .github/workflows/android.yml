@@ -14,6 +14,17 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Reject Java-style \uXXXX escapes in default strings
+        # 13.0 sync: values/strings.xml no longer goes through aapt2 for the default strings;
+        # TelegramStringsTask packs it into localization_*.bin and strips every backslash, so
+        # an escaped em dash would ship as the literal text "u2014". Write the UTF-8 character.
+        run: |
+          if git grep -nE '\\u[0-9a-fA-F]{4}' -- '*/res/values*/strings.xml'; then
+            echo "::error::Java-style unicode escape in strings.xml (TelegramStringsTask would ship it as literal text)"
+            exit 1
+          fi
+          echo "no unicode escapes in strings.xml"
+
       - name: Free up disk space
         run: |
           echo "=== disk before ==="; df -h /

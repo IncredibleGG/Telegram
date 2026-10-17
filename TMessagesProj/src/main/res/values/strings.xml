@@ -11770,7 +11770,7 @@
     <string name="LuminaSttModelDeleted">%1$s voice model deleted</string>
     <!-- LuminaGram auto-blur incoming media -->
     <string name="LuminaAutoBlurIncoming">Auto-blur incoming media</string>
-    <string name="LuminaAutoBlurIncomingInfo">Blur incoming photos, videos, and GIFs until you tap to reveal. This does not affect the sender\'s message \u2014 only how you see it locally.</string>
+    <string name="LuminaAutoBlurIncomingInfo">Blur incoming photos, videos, and GIFs until you tap to reveal. This does not affect the sender\'s message — only how you see it locally.</string>
     <!-- LuminaGram screenshot detection -->
     <string name="LuminaSecurityDetectionHeader">Detection</string>
     <string name="LuminaScreenshotDetection">Screenshot detection</string>
@@ -11799,10 +11799,10 @@
     <string name="LuminaOtpGuardCancel">Don\'t send</string>
     <string name="LuminaOtpGuardSendAnyway">I understand the risk, send anyway</string>
     <string name="LuminaOtpGuard">Login code protection</string>
-    <string name="LuminaOtpGuardInfo">Warn you before sending a message that contains a login code, if Telegram has just sent you one. The check runs entirely on your device \u2014 nothing is uploaded, and your message is never changed.</string>
+    <string name="LuminaOtpGuardInfo">Warn you before sending a message that contains a login code, if Telegram has just sent you one. The check runs entirely on your device — nothing is uploaded, and your message is never changed.</string>
 <!-- LuminaGram file masquerade guard (anti-scam) -->
     <string name="LuminaFileGuard">File disguise protection</string>
-    <string name="LuminaFileGuardInfo">Warn you before opening a file whose name or type has been disguised to hide what it really is \u2014 for example an app pretending to be a video or photo, or a name that uses hidden right-to-left characters. The check runs entirely on your device.</string>
+    <string name="LuminaFileGuardInfo">Warn you before opening a file whose name or type has been disguised to hide what it really is — for example an app pretending to be a video or photo, or a name that uses hidden right-to-left characters. The check runs entirely on your device.</string>
     <string name="LuminaFileGuardTitle">Suspicious file</string>
     <string name="LuminaFileGuardRtl">This file name uses hidden text-direction characters that disguise what the file really is.\n\nIts real name is:\n%1$s\n\nDo not open it unless you fully trust the sender.</string>
     <string name="LuminaFileGuardExecutable">This file (%1$s) looks harmless, but it is actually an app or program (%2$s). Opening it could install harmful software on your device.\n\nDo not open it unless you fully trust the sender.</string>
@@ -11833,16 +11833,16 @@
     <string name="LuminaSessionAlertIp">IP address</string>
     <string name="LuminaSessionAlertLocation">Location</string>
     <string name="LuminaSessionAlertTime">Signed in</string>
-    <string name="LuminaSessionAlertNotMe">Not me \u2014 terminate now</string>
+    <string name="LuminaSessionAlertNotMe">Not me — terminate now</string>
     <string name="LuminaSessionAlertItsMe">That was me</string>
     <string name="LuminaSessionTerminated">Session terminated</string>
-    <string name="LuminaSessionTerminateFailed">Could not terminate that session. Open Settings \u2192 Devices and remove it there.</string>
+    <string name="LuminaSessionTerminateFailed">Could not terminate that session. Open Settings → Devices and remove it there.</string>
     <string name="LuminaSession2FAMessage">That device has been signed out. Turn on Two-Step Verification so nobody can sign in again with just a code.</string>
     <string name="LuminaSession2FAButton">Set up now</string>
     <string name="LuminaSessionLater">Later</string>
     <string name="LuminaSessionQrConfirmTitle">Authorise a new device?</string>
     <string name="LuminaSessionQrConfirmMessage">You are about to authorise a new device to sign in to your account. Unless you are sitting at that computer yourself, whoever controls it will be able to read all of your messages. Never scan a login QR code that someone sent you.</string>
-    <string name="LuminaSessionQrConfirmContinue">I am at that device \u2014 continue</string>
+    <string name="LuminaSessionQrConfirmContinue">I am at that device — continue</string>
     <!-- LuminaGram: account security checkup page -->
     <string name="LuminaSecCheckupTitle">Security checkup</string>
     <string name="LuminaSecCheckupSummaryChecking">Checking your account…</string>
