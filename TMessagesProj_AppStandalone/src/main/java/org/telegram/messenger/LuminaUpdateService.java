@@ -130,15 +130,15 @@ public class LuminaUpdateService extends Service {
             NotificationsController.checkOtherNotificationsChannel();
             final NotificationCompat.Builder ready = new NotificationCompat.Builder(context, NotificationsController.OTHER_NOTIFICATIONS_CHANNEL);
             ready.setChannelId(NotificationsController.OTHER_NOTIFICATIONS_CHANNEL);
-            ready.setSmallIcon(R.drawable.notification);
+            ready.setSmallIcon(org.telegram.messenger.R.drawable.notification);
             ready.setWhen(System.currentTimeMillis());
             ready.setAutoCancel(true);
-            ready.setContentTitle(LuminaLocale.getString(R.string.LuminaUpdateReadyTitle));
+            ready.setContentTitle(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateReadyTitle));
             if (version != null && version.length() > 0) {
                 ready.setContentText(String.format(java.util.Locale.US,
-                        LuminaLocale.getString(R.string.LuminaUpdateReadyVersionText), version));
+                        LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateReadyVersionText), version));
             } else {
-                ready.setContentText(LuminaLocale.getString(R.string.LuminaUpdateReadyText));
+                ready.setContentText(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateReadyText));
             }
             ready.setContentIntent(installIntent(context, apk));
             NotificationManagerCompat.from(context).notify(READY_NOTIFICATION_ID, ready.build());
@@ -222,7 +222,7 @@ public class LuminaUpdateService extends Service {
                 builder.setWhen(System.currentTimeMillis());
                 builder.setOngoing(true);
                 builder.setOnlyAlertOnce(true);
-                builder.setContentTitle(LuminaLocale.getString(R.string.LuminaUpdateNotificationTitle));
+                builder.setContentTitle(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateNotificationTitle));
                 final PendingIntent open = openAppIntent(ApplicationLoader.applicationContext);
                 if (open != null) {
                     builder.setContentIntent(open);
@@ -274,12 +274,12 @@ public class LuminaUpdateService extends Service {
             final int percent = (int) Math.max(0, Math.min(100L, downloaded * 100L / total));
             builder.setProgress(100, percent, false);
             builder.setContentText(String.format(java.util.Locale.US,
-                    LuminaLocale.getString(R.string.LuminaUpdateNotificationProgress),
+                    LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateNotificationProgress),
                     formatMb(downloaded), formatMb(total)));
         } else {
             // No Content-Length (chunked transfer): indeterminate bar, no fake numbers.
             builder.setProgress(100, 0, true);
-            builder.setContentText(LuminaLocale.getString(R.string.LuminaUpdateDownloading));
+            builder.setContentText(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateDownloading));
         }
     }
 

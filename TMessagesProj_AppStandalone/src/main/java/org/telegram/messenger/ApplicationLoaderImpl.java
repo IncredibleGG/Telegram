@@ -636,7 +636,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
         try {
             BaseFragment fragment = LaunchActivity.getLastFragment();
             if (fragment != null) {
-                BulletinFactory.of(fragment).createErrorBulletin(LuminaLocale.getString(R.string.LuminaUpdateFailed)).show();
+                BulletinFactory.of(fragment).createErrorBulletin(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateFailed)).show();
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -664,14 +664,14 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                     return;
                 }
                 AlertDialog.Builder builder = new AlertDialog.Builder(context);
-                builder.setTitle(LuminaLocale.getString(R.string.LuminaUpdateAvailable));
+                builder.setTitle(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateAvailable));
                 StringBuilder message = new StringBuilder();
-                message.append(LuminaLocale.getString(R.string.LuminaUpdateNewVersion)).append(' ').append(update.version);
+                message.append(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateNewVersion)).append(' ').append(update.version);
                 if (update.changelog != null && update.changelog.length() > 0) {
                     message.append("\n\n").append(update.changelog);
                 }
                 builder.setMessage(message.toString());
-                builder.setPositiveButton(LuminaLocale.getString(R.string.LuminaUpdateNow), (dialog, which) -> {
+                builder.setPositiveButton(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateNow), (dialog, which) -> {
                     if (activity == null) {
                         return;
                     }
@@ -680,7 +680,7 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
                     }
                     beginDownloadAndInstall(activity);
                 });
-                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+                builder.setNegativeButton(LocaleController.getString(org.telegram.messenger.R.string.Cancel), null);
                 builder.show();
             } catch (Exception e) {
                 FileLog.e(e);
@@ -729,12 +729,12 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
             dialog.setCancelable(false);            // back key no longer aborts the download
             dialog.setCanceledOnTouchOutside(false); // neither does a tap outside the box
             dialog.setDismissDialogByButtons(false); // we decide what each button closes
-            dialog.setMessage(LuminaLocale.getString(R.string.LuminaUpdateDownloading));
+            dialog.setMessage(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateDownloading));
             // Keep downloading, just get out of the way: the transfer lives on globalQueue
             // and is held up by LuminaUpdateService, so dismissing changes nothing about it.
-            dialog.setNeutralButton(LuminaLocale.getString(R.string.LuminaUpdateDownloadInBackground), (d, which) -> dismissUpdateProgressDialog());
+            dialog.setNeutralButton(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateDownloadInBackground), (d, which) -> dismissUpdateProgressDialog());
             // The only thing in the whole UI that actually stops the download.
-            dialog.setNegativeButton(LuminaLocale.getString(R.string.LuminaUpdateCancelDownload), (d, which) -> {
+            dialog.setNegativeButton(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateCancelDownload), (d, which) -> {
                 cancelDownloadingUpdate();
                 dismissUpdateProgressDialog();
             });
@@ -766,10 +766,10 @@ public class ApplicationLoaderImpl extends ApplicationLoader {
             if (total > 0) {
                 dialog.setProgress((int) Math.max(0L, Math.min(100L, downloaded * 100L / total)));
                 dialog.setMessage(String.format(java.util.Locale.US,
-                        LuminaLocale.getString(R.string.LuminaUpdateDownloadingProgress),
+                        LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateDownloadingProgress),
                         formatUpdateSizeMb(downloaded), formatUpdateSizeMb(total)));
             } else {
-                dialog.setMessage(LuminaLocale.getString(R.string.LuminaUpdateDownloading));
+                dialog.setMessage(LuminaLocale.getString(org.telegram.messenger.R.string.LuminaUpdateDownloading));
             }
         } catch (Exception e) {
             FileLog.e(e);
