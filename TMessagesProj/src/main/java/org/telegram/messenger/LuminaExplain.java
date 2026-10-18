@@ -97,7 +97,7 @@ public final class LuminaExplain {
                     .put("messages", messages)
                     .toString();
         } catch (Exception e) {
-            cb.onError(e.getMessage());
+            cb.onError(LuminaTranslatorUtil.errorText(e));
             return;
         }
         final Map<String, String> headers = new HashMap<>();

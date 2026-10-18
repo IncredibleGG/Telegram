@@ -220,8 +220,13 @@ public class TranslateController extends BaseController {
     // True only when dual-language display is on AND the dialog matches the configured
     // scope: real 1:1 user chats -> trScopePrivate, groups/channels -> trScopeGroup.
     // isUserDialog/isChatDialog both exclude encrypted & folder pseudo-dialogs.
+    // Protected dialogs (Saved Messages, 777000 and other Telegram official / support accounts)
+    // are never auto-enabled -- see LuminaPrivacyGate.
     public boolean luminaShouldAutoTranslate(long dialogId) {
-        if (!LuminaConfig.getBoolean("dualLanguageDisplay", false)) {
+        if (!LuminaConfig.isDualLanguageDisplayEnabled()) {
+            return false;
+        }
+        if (isLuminaProtectedDialog(dialogId)) {
             return false;
         }
         // LuminaGram: only auto-enable incoming/whole-chat translation in "all" mode.
@@ -239,7 +244,19 @@ public class TranslateController extends BaseController {
         return false;
     }
 
+    // LuminaGram: whole-chat translation is an AUTOMATIC flow (every visible message is sent to
+    // the selected provider), so it never runs in the user's own Saved Messages, the 777000
+    // service-notification chat (login codes) or other Telegram official / support accounts,
+    // whatever trMode / dual-language / a previously stored per-chat toggle say. Translating a
+    // single message by hand (TranslateAlert2, text selection) is not affected.
+    public boolean isLuminaProtectedDialog(long dialogId) {
+        return LuminaPrivacyGate.isProtectedDialog(currentAccount, dialogId);
+    }
+
     public boolean isDialogTranslatable(long dialogId) {
+        if (isLuminaProtectedDialog(dialogId)) {
+            return false;
+        }
         // LuminaGram: eager auto-enable -- treat scope-matching dialogs as translatable
         // immediately so the translate pipeline turns on without waiting for detection.
         if (luminaShouldAutoTranslate(dialogId)) {
@@ -278,6 +295,9 @@ public class TranslateController extends BaseController {
     }
 
     public boolean isTranslatingDialog(long dialogId) {
+        if (isLuminaProtectedDialog(dialogId)) {
+            return false;
+        }
         return isFeatureAvailable(dialogId) && translatingDialogs.get(dialogId, isChatAutoTranslated(dialogId));
     }
 
@@ -828,7 +848,7 @@ public class TranslateController extends BaseController {
         // LuminaGram: dual-language display -- skip a redundant translation when this
         // message's own detected source language already equals the target/read language,
         // so no identical "translation" line is rendered under the original text.
-        if (LuminaConfig.getBoolean("dualLanguageDisplay", false)) {
+        if (LuminaConfig.isDualLanguageDisplayEnabled()) {
             final String detected = messageObject.messageOwner.originalLanguage;
             if (detected != null && !UNKNOWN_LANGUAGE.equals(detected) && detected.equals(language)) {
                 return;
@@ -951,7 +971,7 @@ public class TranslateController extends BaseController {
                         // translatedText null so no identical sub-line renders, and record originalLanguage
                         // so the pre-request guard fires next time (no re-translate loop).
                         boolean luminaSkipSameLang = false;
-                        if (LuminaConfig.getBoolean("dualLanguageDisplay", false)) {
+                        if (LuminaConfig.isDualLanguageDisplayEnabled()) {
                             final String luminaOriginal = isTranscription ? finalMessageObject.messageOwner.voiceTranscription : finalMessageObject.messageOwner.message;
                             final String luminaTranslated = text != null ? text.text : null;
                             final String luminaDetected = finalMessageObject.messageOwner.originalLanguage;
@@ -1284,6 +1304,12 @@ public class TranslateController extends BaseController {
 
         final boolean isTranscription = message.messageOwner.voiceTranscription != null && message.messageOwner.voiceTranscriptionFinal && message.messageOwner.voiceTranscriptionOpen;
         final long dialogId = message.getDialogId();
+        // LuminaGram: second line of defence behind isTranslatingDialog() -- this batch path is
+        // automatic, so nothing from a protected dialog (Saved Messages, 777000, official /
+        // support accounts) is ever queued for a provider here.
+        if (isLuminaProtectedDialog(dialogId)) {
+            return;
+        }
 
         final HashMap<Long, ArrayList<PendingTranslation>> pendingTranslations = isTranscription ? pendingTranscriptionsTranslations : this.pendingTranslations;
         final Set<Integer> loadingTranslations = isTranscription ? loadingTranscriptionTranslations : this.loadingTranslations;

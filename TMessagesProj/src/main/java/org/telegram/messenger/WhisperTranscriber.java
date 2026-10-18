@@ -10,8 +10,9 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * LuminaGram — cloud speech-to-text via the OpenAI-compatible Whisper transcription
@@ -27,8 +28,10 @@ import java.nio.charset.StandardCharsets;
  * are reused.
  *
  * Security (mirrors {@link LuminaTranslatorUtil}): the API key rides only in the
- * Authorization header, and errors surfaced to the callback carry the HTTP status only,
- * never the request or response body.
+ * Authorization header, a redirect to another host or from https to http is refused instead
+ * of replaying it ({@link LuminaTranslatorUtil#open}; same-host redirects and plain http://
+ * endpoints keep working), and errors surfaced to the callback carry only a short category or
+ * the HTTP status, never the URL, request or response body.
  */
 final class WhisperTranscriber implements LuminaTranscriber {
 
@@ -113,40 +116,39 @@ final class WhisperTranscriber implements LuminaTranscriber {
         HttpURLConnection c = null;
         try {
             cb.onProgress(0f);
-            c = (HttpURLConnection) new URI(url).toURL().openConnection();
-            c.setConnectTimeout(TIMEOUT);
-            c.setReadTimeout(TIMEOUT);
-            c.setRequestMethod("POST");
-            c.setRequestProperty("Authorization", "Bearer " + key);
-            c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-            c.setDoOutput(true);
-            // Known exact length -> stream the file without buffering the whole body in memory.
-            c.setFixedLengthStreamingMode((long) pre.length + fileLen + post.length);
+            final Map<String, String> headers = new HashMap<>();
+            headers.put("Authorization", "Bearer " + key);
+            headers.put("Content-Type", "multipart/form-data; boundary=" + boundary);
+            c = LuminaTranslatorUtil.open("POST", url, headers, conn -> {
+                conn.setDoOutput(true);
+                // Known exact length -> stream the file without buffering the whole body in memory.
+                conn.setFixedLengthStreamingMode((long) pre.length + fileLen + post.length);
 
-            final OutputStream os = c.getOutputStream();
-            final InputStream fis = new BufferedInputStream(new FileInputStream(audio));
-            try {
-                os.write(pre);
-                final byte[] buf = new byte[16 * 1024];
-                long sent = 0;
-                int n;
-                while ((n = fis.read(buf)) != -1) {
-                    os.write(buf, 0, n);
-                    sent += n;
-                    cb.onProgress(Math.min(0.99f, (float) sent / (float) fileLen));
-                }
-                os.write(post);
-                os.flush();
-            } finally {
+                final OutputStream os = conn.getOutputStream();
+                final InputStream fis = new BufferedInputStream(new FileInputStream(audio));
                 try {
-                    fis.close();
-                } catch (Exception ignore) {
+                    os.write(pre);
+                    final byte[] buf = new byte[16 * 1024];
+                    long sent = 0;
+                    int n;
+                    while ((n = fis.read(buf)) != -1) {
+                        os.write(buf, 0, n);
+                        sent += n;
+                        cb.onProgress(Math.min(0.99f, (float) sent / (float) fileLen));
+                    }
+                    os.write(post);
+                    os.flush();
+                } finally {
+                    try {
+                        fis.close();
+                    } catch (Exception ignore) {
+                    }
+                    try {
+                        os.close();
+                    } catch (Exception ignore) {
+                    }
                 }
-                try {
-                    os.close();
-                } catch (Exception ignore) {
-                }
-            }
+            }, TIMEOUT, TIMEOUT, true);
 
             final int code = c.getResponseCode();
             final InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
@@ -164,7 +166,8 @@ final class WhisperTranscriber implements LuminaTranscriber {
                 cb.onResult(text);
             }
         } catch (Exception e) {
-            cb.onError(e.getMessage());
+            // Category only: an exception message can embed the (user-entered) endpoint URL.
+            cb.onError(LuminaTranslatorUtil.errorText(e));
         } finally {
             if (c != null) {
                 try {

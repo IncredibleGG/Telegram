@@ -65,7 +65,7 @@ final class DeepLTranslator implements LuminaTranslator {
             }
             body = request.toString();
         } catch (Exception e) {
-            cb.onError(false, e.getMessage());
+            cb.onError(false, LuminaTranslatorUtil.errorText(e));
             return;
         }
         final Map<String, String> headers = new HashMap<>();

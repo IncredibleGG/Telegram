@@ -26,6 +26,7 @@ import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.TranslateAlert2;
@@ -195,6 +196,19 @@ public final class LuminaChatLanguageMenu {
     }
 
     private static void showIncomingPicker(BaseFragment fragment, TranslateController controller, long dialogId, Runnable onChanged) {
+        // LuminaGram: Saved Messages, 777000 (login codes) and other Telegram official / support
+        // chats are never translated as a whole (LuminaPrivacyGate). Say so instead of offering a
+        // language list that could not take effect; single messages can still be translated by hand.
+        if (controller.isLuminaProtectedDialog(dialogId)) {
+            try {
+                BulletinFactory.of(fragment)
+                        .createSimpleBulletin(R.raw.msg_translate, LuminaLocale.getString(R.string.LuminaTrProtectedChat))
+                        .show();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return;
+        }
         showLanguagePicker(
                 fragment,
                 LuminaLocale.getString(R.string.LuminaChatLangThemTitle),

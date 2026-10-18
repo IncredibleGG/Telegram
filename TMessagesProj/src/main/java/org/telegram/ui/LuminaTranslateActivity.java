@@ -150,7 +150,7 @@ public class LuminaTranslateActivity extends BaseFragment {
         // ---- 2) Receiving (incoming) ----
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaTranslateReceiveHeader)));
         items.add(UItem.asSwitch(ITEM_DUAL_LANGUAGE, LuminaLocale.getString(R.string.LuminaDualLanguageDisplay))
-                .setChecked(LuminaConfig.getBoolean("dualLanguageDisplay", false)));
+                .setChecked(LuminaConfig.isDualLanguageDisplayEnabled()));
         items.add(UItem.asButton(ITEM_READ_LANG, LuminaLocale.getString(R.string.LuminaTranslateReadLang), currentReadLanguageName()));
         // Long bilingual messages: fold the ORIGINAL to one line so it doesn't flood the chat; the
         // translation is always shown in full. Defaults ON. Tapping a folded original expands it
@@ -235,7 +235,7 @@ public class LuminaTranslateActivity extends BaseFragment {
                 update();
                 break;
             case ITEM_DUAL_LANGUAGE:
-                LuminaConfig.putBoolean("dualLanguageDisplay", !LuminaConfig.getBoolean("dualLanguageDisplay", false));
+                LuminaConfig.putBoolean(LuminaConfig.KEY_DUAL_LANGUAGE_DISPLAY, !LuminaConfig.isDualLanguageDisplayEnabled());
                 update();
                 break;
             case ITEM_FOLD_ORIGINAL:
@@ -352,8 +352,18 @@ public class LuminaTranslateActivity extends BaseFragment {
             edit.setSingleLine(true);
         }
         edit.setInputType(inputType);
-        edit.setText(LuminaConfig.getString(prefKey, def));
-        edit.setSelection(edit.length());
+        // LuminaGram: an API key is never put back into the field as text. The stored key only
+        // shows as a masked hint ("••••••abcd"); typing replaces it, Save with an empty field
+        // keeps it, and Delete clears it.
+        final String storedSecret = password ? LuminaConfig.getString(prefKey, "") : null;
+        if (password) {
+            if (storedSecret != null && storedSecret.length() > 0) {
+                edit.setHintText(maskKey(storedSecret));
+            }
+        } else {
+            edit.setText(LuminaConfig.getString(prefKey, def));
+            edit.setSelection(edit.length());
+        }
 
         final FrameLayout container = new FrameLayout(context);
         container.addView(edit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
@@ -363,10 +373,20 @@ public class LuminaTranslateActivity extends BaseFragment {
         builder.setTitle(title);
         builder.setView(container);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
-            LuminaConfig.putString(prefKey, edit.getText().toString().trim());
+            final String value = edit.getText().toString().trim();
+            if (!password || value.length() > 0) {
+                LuminaConfig.putString(prefKey, value);
+            }
             update();
             AndroidUtilities.hideKeyboard(edit);
         });
+        if (password && storedSecret != null && storedSecret.length() > 0) {
+            builder.setNeutralButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+                LuminaConfig.putString(prefKey, "");
+                update();
+                AndroidUtilities.hideKeyboard(edit);
+            });
+        }
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         builder.show();
     }

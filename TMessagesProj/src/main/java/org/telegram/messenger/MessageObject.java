@@ -3760,7 +3760,7 @@ public class MessageObject {
         // LuminaGram: for outgoing TBS messages, always keep original as main regardless
         // of dualLanguageDisplay — the user chose to translate-before-send, so they must
         // be able to see their own original. dualLanguageDisplay gates the RECEIVE side.
-        boolean dualOn = LuminaConfig.getBoolean("dualLanguageDisplay", false);
+        boolean dualOn = LuminaConfig.isDualLanguageDisplayEnabled();
         boolean tbsOn = LuminaConfig.translateBeforeSend;
         if (!dualOn && !(tbsOn && isOutOwner())) {
             return false;
@@ -3802,7 +3802,7 @@ public class MessageObject {
         }
         // LuminaGram: for outgoing TBS messages, always apply dual-original regardless of
         // dualLanguageDisplay (the user chose to translate, so their original must be visible).
-        boolean dualOn = LuminaConfig.getBoolean("dualLanguageDisplay", false);
+        boolean dualOn = LuminaConfig.isDualLanguageDisplayEnabled();
         boolean tbsOutgoing = LuminaConfig.translateBeforeSend && isOutOwner();
         if (!dualOn && !tbsOutgoing) {
             if (luminaDualOriginalApplied) {

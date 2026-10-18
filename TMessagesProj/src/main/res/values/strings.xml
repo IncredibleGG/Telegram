@@ -11979,6 +11979,14 @@
     <string name="LuminaAppIconTitle">App icon</string>
     <string name="LuminaAppIconHeader">Choose icon</string>
     <string name="LuminaAppIconInfo">Pick the icon shown on your home screen. If a disguise is active, it takes over the icon until you turn it off.</string>
+    <!-- LuminaGram 1.5.1: privacy fixes (backup provider review, view-once STT, protected chats) -->
+    <string name="LuminaBackupProviderTitle">Translation services in this backup</string>
+    <string name="LuminaBackupProviderMessage">This backup changes where your messages are sent for translation, AI or speech-to-text, or replaces your API keys. They would be sent to:</string>
+    <string name="LuminaBackupProviderQuestion">Apply these service settings? “Keep current” restores everything else and leaves your providers, addresses and keys as they are.</string>
+    <string name="LuminaBackupProviderApply">Apply</string>
+    <string name="LuminaBackupProviderKeep">Keep current</string>
+    <string name="LuminaSttViewOnceCloud">View-once messages can only be transcribed with the on-device engine.</string>
+    <string name="LuminaTrProtectedChat">Automatic translation is off in Saved Messages and Telegram service chats to protect login codes and private notes. You can still translate a single message from its menu.</string>
 
     <string name="RoundVideoSettings">Round Video</string>
     <string name="RoundVideoGeneral">Recorder</string>

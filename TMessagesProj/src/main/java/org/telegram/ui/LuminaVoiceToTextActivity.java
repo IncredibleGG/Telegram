@@ -47,7 +47,7 @@ public class LuminaVoiceToTextActivity extends BaseFragment {
     private static final String KEY_MODEL = "sttModel";               // whisper only
     // The chosen offline model language lives in LuminaVoskModelManager.CONFIG_KEY_LANG.
     // Carry-on-into-translation switches, consumed by LuminaVoiceToText.
-    private static final String KEY_AUTO_TRANSLATE = "sttAutoTranslate"; // default true
+    private static final String KEY_AUTO_TRANSLATE = "sttAutoTranslate"; // default false
     private static final String KEY_AUTO_PIPELINE = "sttAutoPipeline";   // default false (costs quota)
 
     private static final String ENGINE_VOSK = "vosk";
@@ -285,8 +285,18 @@ public class LuminaVoiceToTextActivity extends BaseFragment {
             edit.setSingleLine(true);
         }
         edit.setInputType(inputType);
-        edit.setText(LuminaConfig.getString(prefKey, def));
-        edit.setSelection(edit.length());
+        // LuminaGram: an API key is never put back into the field as text. The stored key only
+        // shows as a masked hint ("••••••abcd"); typing replaces it, Save with an empty field
+        // keeps it, and Delete clears it.
+        final String storedSecret = password ? LuminaConfig.getString(prefKey, "") : null;
+        if (password) {
+            if (storedSecret != null && storedSecret.length() > 0) {
+                edit.setHintText(maskKey(storedSecret));
+            }
+        } else {
+            edit.setText(LuminaConfig.getString(prefKey, def));
+            edit.setSelection(edit.length());
+        }
 
         final FrameLayout container = new FrameLayout(context);
         container.addView(edit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
@@ -296,10 +306,20 @@ public class LuminaVoiceToTextActivity extends BaseFragment {
         builder.setTitle(title);
         builder.setView(container);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
-            LuminaConfig.putString(prefKey, edit.getText().toString().trim());
+            final String value = edit.getText().toString().trim();
+            if (!password || value.length() > 0) {
+                LuminaConfig.putString(prefKey, value);
+            }
             update();
             AndroidUtilities.hideKeyboard(edit);
         });
+        if (password && storedSecret != null && storedSecret.length() > 0) {
+            builder.setNeutralButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+                LuminaConfig.putString(prefKey, "");
+                update();
+                AndroidUtilities.hideKeyboard(edit);
+            });
+        }
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         builder.show();
     }

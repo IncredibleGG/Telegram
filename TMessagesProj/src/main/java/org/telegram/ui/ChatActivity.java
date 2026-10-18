@@ -11401,7 +11401,7 @@ public class ChatActivity extends BaseFragment implements
         // LuminaGram: the header icon is eligible when dual-language is on OR when
         // translate-before-send is active (users of TBS want the icon to toggle receive-side
         // translation for the same chat).
-        boolean manualEligible = (LuminaConfig.getBoolean("dualLanguageDisplay", false)
+        boolean manualEligible = (LuminaConfig.isDualLanguageDisplayEnabled()
                 || LuminaConfig.translateBeforeSend)
             && inScope
             && translateController.isFeatureAvailable(getDialogId());
@@ -11411,7 +11411,9 @@ public class ChatActivity extends BaseFragment implements
             // enable translation for THIS chat regardless of sample-based detection.
             boolean visible = translateController.isTranslateDialogHidden(getDialogId())
                 && translateController.isDialogTranslatable(getDialogId());
-            if (!visible && manualEligible) {
+            // LuminaGram: no whole-chat translation in Saved Messages / 777000 / official chats
+            // (LuminaPrivacyGate), so this item would do nothing there.
+            if (!visible && manualEligible && !translateController.isLuminaProtectedDialog(getDialogId())) {
                 visible = true;
             }
             translateItem.setVisibility(visible ? View.VISIBLE : View.GONE);
@@ -30129,7 +30131,7 @@ public class ChatActivity extends BaseFragment implements
         // returns true in "all" mode for scope-matching dialogs -- so "manual" (quota-
         // saving) mode does NOT auto-enable here; the user turns translation on via the
         // header translate icon. Mirrors the sibling dialogIsTranslatable handler.
-        if (LuminaConfig.getBoolean("dualLanguageDisplay", false)) {
+        if (LuminaConfig.isDualLanguageDisplayEnabled()) {
             final long dualLangDialogId = getDialogId();
             final TranslateController translateController = getMessagesController().getTranslateController();
             if (translateController.isFeatureAvailable(dualLangDialogId)

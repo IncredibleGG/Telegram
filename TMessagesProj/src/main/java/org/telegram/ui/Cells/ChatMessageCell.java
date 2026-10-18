@@ -16902,7 +16902,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         // LuminaGram: for outgoing TBS messages, always show dual-language (original big +
         // translation small) even if dualLanguageDisplay is off — the sender must see their
         // own original. dualLanguageDisplay still gates the RECEIVE side.
-        boolean dualOn = LuminaConfig.getBoolean("dualLanguageDisplay", false);
+        boolean dualOn = LuminaConfig.isDualLanguageDisplayEnabled();
         boolean tbsOutgoing = LuminaConfig.translateBeforeSend && messageObject.isOutOwner();
         if (!dualOn && !tbsOutgoing) {
             return;

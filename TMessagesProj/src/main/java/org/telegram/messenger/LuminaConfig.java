@@ -612,13 +612,27 @@ public class LuminaConfig {
     // Default (when the user has never customised the list): the interface language
     // PLUS the configured dual-language READ language (trReadLang), if any.
     public static final String KEY_MY_LANGUAGES = "myLanguages";
-    // On/off switch for the group-skip optimisation (default ON). When off, group
+    // On/off switch for the group-skip optimisation (default OFF). When off, group
     // translation behaves exactly like upstream (translate every foreign message).
+    // Only the initial default changed; a value the user already stored is kept.
     public static final String KEY_GROUP_SKIP_MY_LANGUAGES = "groupSkipMyLanguages";
 
-    /** True when the "skip languages I already read" optimisation is enabled (default ON). */
+    /** True when the "skip languages I already read" optimisation is enabled (default OFF). */
     public static boolean isGroupSkipMyLanguagesEnabled() {
-        return getBoolean(KEY_GROUP_SKIP_MY_LANGUAGES, true);
+        return getBoolean(KEY_GROUP_SKIP_MY_LANGUAGES, false);
+    }
+
+    // ---- Dual-language display (original big + translation small) ----
+    // Single source of truth for the default (ON). Every reader goes through
+    // isDualLanguageDisplayEnabled() so no call site can disagree about the default.
+    // Only the initial default changed; a value the user already stored is kept.
+    // It only changes how translations are SHOWN: auto-enabling whole-chat translation
+    // still needs trMode "all", and protected chats (LuminaPrivacyGate) are never auto-translated.
+    public static final String KEY_DUAL_LANGUAGE_DISPLAY = "dualLanguageDisplay";
+
+    /** True when dual-language display is on (default ON). */
+    public static boolean isDualLanguageDisplayEnabled() {
+        return getBoolean(KEY_DUAL_LANGUAGE_DISPLAY, true);
     }
 
     public static void toggleGroupSkipMyLanguages() {
@@ -1394,6 +1408,144 @@ public class LuminaConfig {
         return out;
     }
 
+    // ---- Backup import: provider-routing review ----
+    // These keys decide WHERE translation / AI (Explain) / speech-to-text content is sent and with
+    // which credentials. A shared "settings" backup that changed them could quietly route every
+    // translated message to a server the user never chose, so restoring them needs an explicit yes
+    // (LuminaBackupActivity). Export is unchanged.
+    private static final String STT_DEFAULT_BASE_URL = "https://api.openai.com/v1";
+
+    /** Provider selection, endpoint base URLs and API keys of translation / AI / STT providers. */
+    public static boolean isProviderRoutingKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        return "translateProvider".equals(key)
+                || "translateBaseUrl".equals(key)
+                || "sttEngine".equals(key)
+                || "sttCloudBaseUrl".equals(key)
+                || key.startsWith("translateKey_")
+                || key.startsWith("sttKey_");
+    }
+
+    /**
+     * Destinations that importing {@code data} would newly send content or credentials to: a
+     * changed endpoint base URL, switching to a custom-endpoint provider (LLM / Whisper), or a new
+     * or replaced API key. Each entry is "scheme://host[:port]" (or the raw value, shortened, when
+     * it does not parse). An empty list means the backup leaves provider routing alone and can be
+     * restored without asking. Never throws.
+     */
+    public static java.util.List<String> reviewProviderRoutingImport(org.json.JSONObject data) {
+        final java.util.LinkedHashSet<String> hosts = new java.util.LinkedHashSet<>();
+        if (data == null) {
+            return new java.util.ArrayList<>(hosts);
+        }
+        try {
+            final String curTrProvider = safeString("translateProvider", "google_web");
+            final String newTrProvider = importedString(data, "translateProvider", curTrProvider);
+            final String curTrBase = safeString("translateBaseUrl", LuminaTranslators.LLM_DEFAULT_BASE_URL);
+            final String newTrBase = importedString(data, "translateBaseUrl", curTrBase);
+            final String curSttEngine = safeString("sttEngine", "");
+            final String newSttEngine = importedString(data, "sttEngine", curSttEngine);
+            final String curSttBase = safeString("sttCloudBaseUrl", STT_DEFAULT_BASE_URL);
+            final String newSttBase = importedString(data, "sttCloudBaseUrl", curSttBase);
+
+            // 1. an endpoint changes (translate base URL is also what Explain talks to)
+            if (!sameEndpoint(curTrBase, newTrBase)) {
+                hosts.add(describeEndpoint(newTrBase));
+            }
+            if (!sameEndpoint(curSttBase, newSttBase)) {
+                hosts.add(describeEndpoint(newSttBase));
+            }
+            // 2. a custom-endpoint provider gets selected
+            if ("llm".equals(newTrProvider) && !"llm".equals(curTrProvider)) {
+                hosts.add(describeEndpoint(newTrBase));
+            }
+            if ("whisper".equals(newSttEngine) && !"whisper".equals(curSttEngine)) {
+                hosts.add(describeEndpoint(newSttBase));
+            }
+            // 3. an API key is set or replaced
+            final java.util.Iterator<String> keys = data.keys();
+            while (keys.hasNext()) {
+                final String key = keys.next();
+                if (key == null || !(key.startsWith("translateKey_") || key.startsWith("sttKey_"))) {
+                    continue;
+                }
+                final String imported = importedString(data, key, "").trim();
+                if (imported.length() == 0 || imported.equals(safeString(key, "").trim())) {
+                    continue;
+                }
+                hosts.add(keyDestination(key, imported, newTrBase, newSttBase));
+            }
+        } catch (Throwable t) {
+            // Could not judge the backup: ask rather than restore routing silently.
+            hosts.add("?");
+        }
+        return new java.util.ArrayList<>(hosts);
+    }
+
+    private static String safeString(String key, String def) {
+        try {
+            final String v = getString(key, def);
+            return v == null ? def : v;
+        } catch (Throwable ignore) {
+            // A value of another type under this key (e.g. from an older malformed backup).
+            return def;
+        }
+    }
+
+    private static String importedString(org.json.JSONObject data, String key, String def) {
+        final org.json.JSONObject entry = data.optJSONObject(key);
+        if (entry == null || !entry.has("v")) {
+            return def;
+        }
+        return entry.optString("v", def);
+    }
+
+    private static boolean sameEndpoint(String a, String b) {
+        return LuminaTranslatorUtil.trimTrailingSlash(a).equals(LuminaTranslatorUtil.trimTrailingSlash(b));
+    }
+
+    private static String keyDestination(String key, String value, String trBase, String sttBase) {
+        switch (key) {
+            case "translateKey_deepl":
+                return value.endsWith(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com";
+            case "translateKey_llm":
+                return describeEndpoint(trBase);
+            case "sttKey_google":
+                return "https://speech.googleapis.com";
+            case "sttKey_whisper":
+                return describeEndpoint(sttBase);
+            default:
+                return key;
+        }
+    }
+
+    /** "scheme://host[:port]" of {@code url}; userinfo / path / query are never shown. */
+    public static String describeEndpoint(String url) {
+        final String raw = url == null ? "" : url.trim();
+        try {
+            final java.net.URI u = new java.net.URI(raw);
+            final String scheme = u.getScheme();
+            final String host = u.getHost();
+            if (scheme != null && host != null && host.length() > 0) {
+                String s = scheme.toLowerCase(java.util.Locale.ROOT) + "://" + host.toLowerCase(java.util.Locale.ROOT);
+                if (u.getPort() != -1) {
+                    s += ":" + u.getPort();
+                }
+                return s;
+            }
+        } catch (Exception ignore) {
+        }
+        // Unparseable: show it verbatim (shortened) minus control / bidi-override characters, so
+        // the user still sees where it points and it cannot visually disguise itself.
+        final String shown = raw.replaceAll("[\\p{Cntrl}\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]", "");
+        if (shown.length() == 0) {
+            return "?";
+        }
+        return shown.length() > 80 ? shown.substring(0, 80) + "…" : shown;
+    }
+
     /**
      * Restore keys produced by {@link #exportAll()} back into the "luminagram" prefs,
      * writing each value with its original type. Returns the number of keys applied.
@@ -1401,6 +1553,16 @@ public class LuminaConfig {
      * so a restored appearance/toggle takes effect without a restart.
      */
     public static int importAll(org.json.JSONObject data) {
+        return importAll(data, true);
+    }
+
+    /**
+     * Same as {@link #importAll(org.json.JSONObject)}; when {@code includeProviderRouting} is false
+     * every provider-routing key ({@link #isProviderRoutingKey}) in {@code data} is skipped, so the
+     * current translation / AI / STT provider selection, endpoints and API keys stay as they are
+     * while everything else is restored.
+     */
+    public static int importAll(org.json.JSONObject data, boolean includeProviderRouting) {
         if (data == null) {
             return 0;
         }
@@ -1408,6 +1570,9 @@ public class LuminaConfig {
         java.util.Iterator<String> keys = data.keys();
         while (keys.hasNext()) {
             String key = keys.next();
+            if (!includeProviderRouting && isProviderRoutingKey(key)) {
+                continue;
+            }
             org.json.JSONObject entry = data.optJSONObject(key);
             if (entry == null) {
                 continue;

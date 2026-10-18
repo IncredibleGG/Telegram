@@ -28,7 +28,8 @@ import org.telegram.ui.Components.TranslateAlert2;
  *
  *     &lt;translation&gt;
  * </pre>
- * Gated by {@link #KEY_AUTO_TRANSLATE} (default ON).
+ * Gated by {@link #KEY_AUTO_TRANSLATE} (default OFF), and never done for protected chats
+ * (Saved Messages, 777000, Telegram official / support accounts; see {@link LuminaPrivacyGate}).
  *
  * <p><b>Why two segments in one string rather than a styled sub-line.</b> The transcript slot
  * is {@code TLRPC.Message.voiceTranscription}, a plain {@code String} that is persisted through
@@ -56,7 +57,7 @@ public final class LuminaVoiceToText {
     private static final String KEY_ENABLED = "voiceToTextEnabled";
     /** Engine id; empty means "the user has never picked one". */
     private static final String KEY_ENGINE = "sttEngine";
-    /** Translate the transcript right after transcribing. Default ON. */
+    /** Translate the transcript right after transcribing. Default OFF. */
     public static final String KEY_AUTO_TRANSLATE = "sttAutoTranslate";
     /** Auto-run the whole pipeline for incoming voice in already-translated chats. Default OFF. */
     public static final String KEY_AUTO_PIPELINE = "sttAutoPipeline";
@@ -76,6 +77,16 @@ public final class LuminaVoiceToText {
         // well after startup. No-op when the user has not enabled it.
         ensureAutoPipelineInstalled();
         try {
+            // 0. view-once / self-destructing voice and round video never leave the device: a
+            //    cloud engine is refused here (the single choke point for the context menu, the
+            //    bubble button and the auto pipeline); on-device engines keep working.
+            final LuminaTranscriber selected = LuminaTranscribers.current();
+            if (selected != null && !selected.isOffline() && LuminaPrivacyGate.isSelfDestructingMedia(mo)) {
+                autoPipelineFinished(mo, currentAccount);
+                showError(fragment, LuminaLocale.getString(R.string.LuminaSttViewOnceCloud));
+                return;
+            }
+
             // 1. resolve the local audio file (v1 requires it already downloaded)
             File f = FileLoader.getInstance(currentAccount).getPathToMessage(mo.messageOwner);
             if (f == null || !f.exists()) {
@@ -104,7 +115,7 @@ public final class LuminaVoiceToText {
 
             // 3. run the currently selected local transcriber
             final String langHint = resolveLangHint(mo, currentAccount);
-            final LuminaTranscriber transcriber = LuminaTranscribers.current();
+            final LuminaTranscriber transcriber = selected;
             if (transcriber == null) {
                 showError(fragment, LuminaLocale.getString(R.string.LuminaSttUiError));
                 return;
@@ -126,9 +137,12 @@ public final class LuminaVoiceToText {
                 public void onError(final String message) {
                     AndroidUtilities.runOnUIThread(() -> {
                         autoPipelineFinished(mo, currentAccount);
-                        // LuminaGram: surface the real reason (decode / model / native) instead of a
-                        // generic "failed", so transcription problems are diagnosable in the field.
-                        showError(fragment, LuminaLocale.getString(R.string.LuminaSttUiError) + ((message != null && !message.isEmpty()) ? ("\n" + message) : ""));
+                        // LuminaGram: surface the reason (decode / model / "HTTP 401" ...) instead of
+                        // a generic "failed", so transcription problems are diagnosable in the field.
+                        // Cloud engines only report a category + HTTP status; redact() is a second
+                        // line of defence so no URL, query string or credential ever reaches the UI.
+                        final String safe = LuminaTranslatorUtil.redact(message);
+                        showError(fragment, LuminaLocale.getString(R.string.LuminaSttUiError) + ((safe != null && !safe.isEmpty()) ? ("\n" + safe) : ""));
                     });
                 }
 
@@ -162,6 +176,12 @@ public final class LuminaVoiceToText {
         writeTranscription(mo, transcript, fragment);
 
         if (!LuminaConfig.getBoolean(KEY_AUTO_TRANSLATE, false)) {
+            return;
+        }
+        // Auto-translating the transcript is an AUTOMATIC flow: never for Saved Messages, 777000
+        // or other Telegram official / support chats (LuminaPrivacyGate). The transcript the user
+        // asked for is already on screen; they can still translate it by hand.
+        if (mo != null && LuminaPrivacyGate.isProtectedDialog(currentAccount, mo.getDialogId())) {
             return;
         }
         // 2. this dialog is already being translated -> TranslateController owns the
@@ -450,6 +470,11 @@ public final class LuminaVoiceToText {
                 return false;
             }
             if (!mo.isVoice() && !mo.isRoundVideo()) {
+                return false;
+            }
+            // Never auto-transcribe protected chats (Saved Messages, 777000, official / support).
+            // (View-once media is handled in transcribe(), which refuses cloud engines for it.)
+            if (LuminaPrivacyGate.isProtectedDialog(account, mo.getDialogId())) {
                 return false;
             }
             // Already transcribed (by us, by Telegram, or restored from storage).

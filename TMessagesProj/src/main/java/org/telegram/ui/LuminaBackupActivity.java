@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -263,11 +264,16 @@ public class LuminaBackupActivity extends BaseFragment {
 
             org.json.JSONObject snapshot = new org.json.JSONObject(
                     new String(plaintext, StandardCharsets.UTF_8));
-            LuminaConfig.importAll(snapshot);
-            if (listView != null && listView.adapter != null) {
-                listView.adapter.update(true);
+            // LuminaGram: a backup that would change where translation / AI / speech-to-text
+            // content goes (endpoint, custom-endpoint provider, API key) is confirmed first,
+            // naming the destination host(s). Declining restores everything else and keeps the
+            // current providers, endpoints and keys.
+            final java.util.List<String> destinations = LuminaConfig.reviewProviderRoutingImport(snapshot);
+            if (destinations.isEmpty()) {
+                applyImport(snapshot, true);
+            } else {
+                confirmProviderRouting(snapshot, destinations);
             }
-            showMessage(R.string.LuminaBackupTitle, R.string.LuminaBackupImportSuccess);
         } catch (javax.crypto.BadPaddingException | javax.crypto.IllegalBlockSizeException
                  | org.json.JSONException e) {
             // Wrong passphrase (bad padding) or garbled plaintext that will not parse.
@@ -275,6 +281,65 @@ public class LuminaBackupActivity extends BaseFragment {
         } catch (Exception e) {
             // Missing algorithm on old devices, unreadable envelope, etc.
             showMessage(R.string.LuminaBackupTitle, R.string.LuminaBackupImportFailed);
+        }
+    }
+
+    private void applyImport(org.json.JSONObject snapshot, boolean includeProviderRouting) {
+        try {
+            LuminaConfig.importAll(snapshot, includeProviderRouting);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            showMessage(R.string.LuminaBackupTitle, R.string.LuminaBackupImportSuccess);
+        } catch (Exception e) {
+            showMessage(R.string.LuminaBackupTitle, R.string.LuminaBackupImportFailed);
+        }
+    }
+
+    // Ask before a backup re-routes translation / AI / STT traffic or swaps API keys. Any way of
+    // leaving the dialog other than "Apply" (Keep current, back, tap outside) restores the rest of
+    // the backup and leaves the current provider settings untouched.
+    private void confirmProviderRouting(final org.json.JSONObject snapshot, final java.util.List<String> destinations) {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final StringBuilder message = new StringBuilder(LuminaLocale.getString(R.string.LuminaBackupProviderMessage));
+        message.append("\n");
+        for (String host : destinations) {
+            message.append("\n• ").append(host);
+        }
+        message.append("\n\n").append(LuminaLocale.getString(R.string.LuminaBackupProviderQuestion));
+
+        final boolean[] decided = new boolean[1];
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(LuminaLocale.getString(R.string.LuminaBackupProviderTitle));
+        builder.setMessage(message.toString());
+        builder.setPositiveButton(LuminaLocale.getString(R.string.LuminaBackupProviderApply), (dialog, which) -> {
+            if (decided[0]) {
+                return;
+            }
+            decided[0] = true;
+            applyImport(snapshot, true);
+        });
+        builder.setNegativeButton(LuminaLocale.getString(R.string.LuminaBackupProviderKeep), (dialog, which) -> {
+            if (decided[0]) {
+                return;
+            }
+            decided[0] = true;
+            applyImport(snapshot, false);
+        });
+        final Dialog shown = showDialog(builder.create(), d -> {
+            if (!decided[0]) {
+                decided[0] = true;
+                // Post: the dismissing dialog must be gone before the result dialog is shown.
+                AndroidUtilities.runOnUIThread(() -> applyImport(snapshot, false));
+            }
+        });
+        if (shown == null && !decided[0]) {
+            // The confirmation could not be shown (screen transition): fail safe.
+            decided[0] = true;
+            applyImport(snapshot, false);
         }
     }
 

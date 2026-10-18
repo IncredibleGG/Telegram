@@ -13,8 +13,9 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * LuminaGram — cloud speech-to-text via Google Cloud Speech-to-Text v1 (bring-your-own
@@ -28,15 +29,19 @@ import java.nio.charset.StandardCharsets;
  * utility is reused for the response body.
  *
  * Telegram voice notes are 48 kHz Opus in an OGG container, so the request is pinned to
- * {@code OGG_OPUS} / 48000 Hz. The API key is supplied in the query string because that is
- * Google's documented API-key auth for this endpoint; it is never logged, and errors
- * surfaced to the callback carry the HTTP status only.
+ * {@code OGG_OPUS} / 48000 Hz. The API key travels in the {@code X-goog-api-key} header
+ * (Google's documented alternative to the {@code ?key=} query parameter), so it never appears
+ * in a URL, a proxy log or an exception message. It is never logged, a redirect to another host
+ * or from https to http is refused instead of replaying the key
+ * ({@link LuminaTranslatorUtil#open}), and errors surfaced to the callback carry only a short
+ * category or the HTTP status.
  */
 final class GoogleSpeechTranscriber implements LuminaTranscriber {
 
     // Google synchronous recognize accepts ~1 minute / 10 MB of inline audio.
     private static final long MAX_BYTES = 10L * 1024 * 1024;
     private static final int TIMEOUT = 60000;
+    private static final String ENDPOINT = "https://speech.googleapis.com/v1/speech:recognize";
 
     @Override
     public String id() {
@@ -107,19 +112,19 @@ final class GoogleSpeechTranscriber implements LuminaTranscriber {
                     .put("audio", new JSONObject().put("content", b64))
                     .toString();
 
-            final String url = "https://speech.googleapis.com/v1/speech:recognize?key=" + key;
-            c = (HttpURLConnection) new URI(url).toURL().openConnection();
-            c.setConnectTimeout(TIMEOUT);
-            c.setReadTimeout(TIMEOUT);
-            c.setRequestMethod("POST");
-            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            c.setDoOutput(true);
-            final OutputStream os = c.getOutputStream();
-            try {
-                os.write(body.getBytes(StandardCharsets.UTF_8));
-            } finally {
-                os.close();
-            }
+            final byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+            final Map<String, String> headers = new HashMap<>();
+            headers.put("X-goog-api-key", key);
+            headers.put("Content-Type", "application/json; charset=utf-8");
+            c = LuminaTranslatorUtil.open("POST", ENDPOINT, headers, conn -> {
+                conn.setDoOutput(true);
+                final OutputStream os = conn.getOutputStream();
+                try {
+                    os.write(payload);
+                } finally {
+                    os.close();
+                }
+            }, TIMEOUT, TIMEOUT, true);
 
             final int code = c.getResponseCode();
             final InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
@@ -163,7 +168,8 @@ final class GoogleSpeechTranscriber implements LuminaTranscriber {
                 cb.onResult(text);
             }
         } catch (Exception e) {
-            cb.onError(e.getMessage());
+            // Category only: an exception message can embed the endpoint or response details.
+            cb.onError(LuminaTranslatorUtil.errorText(e));
         } finally {
             if (c != null) {
                 try {
