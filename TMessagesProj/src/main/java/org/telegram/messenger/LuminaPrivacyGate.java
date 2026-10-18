@@ -17,7 +17,8 @@ import org.telegram.tgnet.TLRPC;
  *       Transcribe) are not gated by this.</li>
  *   <li>{@link #isSelfDestructingMedia}: view-once / timed self-destructing media, which must
  *       never be uploaded to a CLOUD speech-to-text engine (on-device engines stay allowed).
- *       Chat-level auto-delete timers are deliberately not considered here.</li>
+ *       Chat-level timers (auto-delete, a secret chat's self-destruct timer) are deliberately
+ *       not considered here.</li>
  * </ul>
  * Secret chats keep their existing, separate exclusions.
  */
@@ -72,9 +73,11 @@ public final class LuminaPrivacyGate {
     }
 
     /**
-     * True for view-once ("play once") voice / round-video messages and for any media carrying a
-     * per-media self-destruct timer ({@code ttl_seconds}). Chat-level auto-delete timers
-     * ({@code ttl_period}) are not media timers and are not matched.
+     * True for view-once ("play once") voice / round-video messages and, in cloud chats, for any
+     * media the sender gave its own self-destruct timer ({@code ttl_seconds}). Chat-level timers
+     * are not matched: neither the auto-delete period ({@code ttl_period}) nor a secret chat's
+     * self-destruct timer, which SecretChatHelper copies into {@code ttl_seconds} of every media
+     * message in that chat. In a secret chat only true view-once media counts.
      */
     public static boolean isSelfDestructingMedia(MessageObject mo) {
         if (mo == null || mo.messageOwner == null) {
@@ -83,6 +86,10 @@ public final class LuminaPrivacyGate {
         try {
             if (mo.isVoiceOnce() || mo.isRoundOnce()) {
                 return true;
+            }
+            if (mo.messageOwner instanceof TLRPC.TL_message_secret
+                    || DialogObject.isEncryptedDialog(mo.getDialogId())) {
+                return false;
             }
             final TLRPC.MessageMedia media = MessageObject.getMedia(mo.messageOwner);
             return media != null && media.ttl_seconds != 0;

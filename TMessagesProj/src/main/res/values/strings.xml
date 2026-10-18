@@ -11985,6 +11985,7 @@
     <string name="LuminaBackupProviderQuestion">Apply these service settings? “Keep current” restores everything else and leaves your providers, addresses and keys as they are.</string>
     <string name="LuminaBackupProviderApply">Apply</string>
     <string name="LuminaBackupProviderKeep">Keep current</string>
+    <string name="LuminaBackupProviderUnrecognized">Unrecognized address (cannot be verified)</string>
     <string name="LuminaSttViewOnceCloud">View-once messages can only be transcribed with the on-device engine.</string>
     <string name="LuminaTrProtectedChat">Automatic translation is off in Saved Messages and Telegram service chats to protect login codes and private notes. You can still translate a single message from its menu.</string>
 

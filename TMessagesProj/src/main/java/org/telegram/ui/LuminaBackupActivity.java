@@ -307,7 +307,8 @@ public class LuminaBackupActivity extends BaseFragment {
         final StringBuilder message = new StringBuilder(LuminaLocale.getString(R.string.LuminaBackupProviderMessage));
         message.append("\n");
         for (String host : destinations) {
-            message.append("\n• ").append(host);
+            message.append("\n• ").append(LuminaConfig.UNRECOGNIZED_ENDPOINT.equals(host)
+                    ? LuminaLocale.getString(R.string.LuminaBackupProviderUnrecognized) : host);
         }
         message.append("\n\n").append(LuminaLocale.getString(R.string.LuminaBackupProviderQuestion));
 

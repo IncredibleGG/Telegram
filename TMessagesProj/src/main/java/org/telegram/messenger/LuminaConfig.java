@@ -1431,9 +1431,9 @@ public class LuminaConfig {
     /**
      * Destinations that importing {@code data} would newly send content or credentials to: a
      * changed endpoint base URL, switching to a custom-endpoint provider (LLM / Whisper), or a new
-     * or replaced API key. Each entry is "scheme://host[:port]" (or the raw value, shortened, when
-     * it does not parse). An empty list means the backup leaves provider routing alone and can be
-     * restored without asking. Never throws.
+     * or replaced API key. Each entry is "scheme://host[:port]" as {@link #describeEndpoint} reports
+     * it, or {@link #UNRECOGNIZED_ENDPOINT} when the host cannot be determined. An empty list means
+     * the backup leaves provider routing alone and can be restored without asking. Never throws.
      */
     public static java.util.List<String> reviewProviderRoutingImport(org.json.JSONObject data) {
         final java.util.LinkedHashSet<String> hosts = new java.util.LinkedHashSet<>();
@@ -1479,7 +1479,7 @@ public class LuminaConfig {
             }
         } catch (Throwable t) {
             // Could not judge the backup: ask rather than restore routing silently.
-            hosts.add("?");
+            hosts.add(UNRECOGNIZED_ENDPOINT);
         }
         return new java.util.ArrayList<>(hosts);
     }
@@ -1516,34 +1516,132 @@ public class LuminaConfig {
                 return "https://speech.googleapis.com";
             case "sttKey_whisper":
                 return describeEndpoint(sttBase);
-            default:
-                return key;
+            default: {
+                // A key no provider reads: name it, restricted to plain identifier characters so a
+                // crafted key name cannot pose as a host line in the confirmation.
+                final String name = key.replaceAll("[^A-Za-z0-9_]", "");
+                return name.length() > 40 ? name.substring(0, 40) : name;
+            }
         }
     }
 
-    /** "scheme://host[:port]" of {@code url}; userinfo / path / query are never shown. */
+    /**
+     * Placeholder entry for a destination whose host cannot be determined reliably. The backup
+     * screen shows it as a localized "unrecognized address" line; the raw value is never shown.
+     */
+    public static final String UNRECOGNIZED_ENDPOINT = "?";
+
+    /**
+     * "scheme://host[:port]" of {@code url} exactly as the HTTP stack will connect to it, or
+     * {@link #UNRECOGNIZED_ENDPOINT}. Userinfo, path, query and fragment are never shown and the
+     * host is never shortened.
+     *
+     * <p>The authority is extracted by hand the way the platform's URL / OkHttp parser does
+     * (it ends at the first '/', '\', '?' or '#'; the host follows the LAST '@'; the port follows
+     * the first ':'), because java.net.URI gives up on IDN, underscore or percent-encoded hosts
+     * while the connection still goes through. The host is percent-decoded and converted with
+     * {@link java.net.IDN#toASCII}, so a homoglyph / internationalized host is shown in its
+     * punycode ("xn--") form instead of looking like a familiar name. Anything that does not end up
+     * as a plain ASCII host name or IP literal is reported as unrecognized. Never throws.
+     */
     public static String describeEndpoint(String url) {
-        final String raw = url == null ? "" : url.trim();
         try {
-            final java.net.URI u = new java.net.URI(raw);
-            final String scheme = u.getScheme();
-            final String host = u.getHost();
-            if (scheme != null && host != null && host.length() > 0) {
-                String s = scheme.toLowerCase(java.util.Locale.ROOT) + "://" + host.toLowerCase(java.util.Locale.ROOT);
-                if (u.getPort() != -1) {
-                    s += ":" + u.getPort();
-                }
-                return s;
+            final String raw = url == null ? "" : url.trim();
+            final int colon = raw.indexOf(':');
+            if (colon <= 0) {
+                return UNRECOGNIZED_ENDPOINT;
             }
-        } catch (Exception ignore) {
+            final String scheme = raw.substring(0, colon).toLowerCase(java.util.Locale.ROOT);
+            if (!"https".equals(scheme) && !"http".equals(scheme)) {
+                return UNRECOGNIZED_ENDPOINT;
+            }
+            int pos = colon + 1;
+            while (pos < raw.length() && (raw.charAt(pos) == '/' || raw.charAt(pos) == '\\')) {
+                pos++;
+            }
+            int end = pos;
+            while (end < raw.length() && "/\\?#".indexOf(raw.charAt(end)) < 0) {
+                end++;
+            }
+            String authority = raw.substring(pos, end);
+            final int at = authority.lastIndexOf('@');
+            if (at >= 0) {
+                authority = authority.substring(at + 1);
+            }
+            String host;
+            String port = "";
+            if (authority.startsWith("[")) {
+                final int close = authority.indexOf(']');
+                if (close < 0) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+                host = authority.substring(0, close + 1);
+                final String rest = authority.substring(close + 1);
+                if (rest.startsWith(":")) {
+                    port = rest.substring(1);
+                } else if (rest.length() > 0) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+            } else {
+                final int pc = authority.indexOf(':');
+                host = pc >= 0 ? authority.substring(0, pc) : authority;
+                port = pc >= 0 ? authority.substring(pc + 1) : "";
+            }
+            host = percentDecodeUtf8(host);
+            final String asciiHost;
+            if (host.startsWith("[") && host.endsWith("]")) {
+                asciiHost = host.toLowerCase(java.util.Locale.ROOT);
+                if (!asciiHost.matches("\\[[0-9a-f:.]+\\]")) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+            } else {
+                if (host.length() == 0) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+                asciiHost = java.net.IDN.toASCII(host).toLowerCase(java.util.Locale.ROOT);
+                if (asciiHost.length() == 0 || !asciiHost.matches("[a-z0-9_.-]+")) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+            }
+            String s = scheme + "://" + asciiHost;
+            if (port.length() > 0) {
+                if (!port.matches("[0-9]{1,5}")) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+                final int p = Integer.parseInt(port);
+                if (p < 1 || p > 65535) {
+                    return UNRECOGNIZED_ENDPOINT;
+                }
+                s += ":" + p;
+            }
+            return s;
+        } catch (Throwable ignore) {
+            // e.g. IDN.toASCII rejecting a label (bidi controls, over-long label): the HTTP stack
+            // would not be able to use it either.
+            return UNRECOGNIZED_ENDPOINT;
         }
-        // Unparseable: show it verbatim (shortened) minus control / bidi-override characters, so
-        // the user still sees where it points and it cannot visually disguise itself.
-        final String shown = raw.replaceAll("[\\p{Cntrl}\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]", "");
-        if (shown.length() == 0) {
-            return "?";
+    }
+
+    /** %XX sequences decoded as UTF-8 bytes (malformed ones kept literally), like OkHttp does for hosts. */
+    private static String percentDecodeUtf8(String s) {
+        if (s.indexOf('%') < 0) {
+            return s;
         }
-        return shown.length() > 80 ? shown.substring(0, 80) + "…" : shown;
+        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        final byte[] in = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        for (int i = 0; i < in.length; i++) {
+            if (in[i] == '%' && i + 2 < in.length) {
+                final int hi = Character.digit(in[i + 1], 16);
+                final int lo = Character.digit(in[i + 2], 16);
+                if (hi >= 0 && lo >= 0) {
+                    out.write((hi << 4) | lo);
+                    i += 2;
+                    continue;
+                }
+            }
+            out.write(in[i]);
+        }
+        return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**
