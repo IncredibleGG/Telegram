@@ -11248,7 +11248,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private void translateOcrText(String original) {
         try {
             String toLang = TranslateAlert2.getToLanguage();
-            LuminaTranslators.current().translate(original, toLang, new LuminaTranslator.Callback() {
+            final LuminaTranslator provider = LuminaTranslators.current();
+            provider.translate(original, toLang, new LuminaTranslator.Callback() {
                 @Override
                 public void onResult(String translated, String detectedSourceLang) {
                     if (parentActivity == null) {
@@ -11265,8 +11266,14 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     // Still surface the recognized text even when translation fails.
                     showOcrResultDialog(original, null);
                     if (containerView != null) {
+                        // LuminaGram 1.5.2: for the user's own LLM endpoint show the mapped, privacy-safe
+                        // reason (model does not exist / key rejected / quota ...) instead of the generic
+                        // text; other providers keep their existing texts.
+                        final String text = "llm".equals(provider.id()) && !TextUtils.isEmpty(message)
+                                ? message
+                                : LuminaLocale.getString(rateLimited ? R.string.LuminaOcrRateLimited : R.string.LuminaOcrTranslateFailed);
                         BulletinFactory.of(containerView, resourcesProvider)
-                                .createErrorBulletin(LuminaLocale.getString(rateLimited ? R.string.LuminaOcrRateLimited : R.string.LuminaOcrTranslateFailed)).show();
+                                .createErrorBulletin(text).show();
                     }
                 }
             });

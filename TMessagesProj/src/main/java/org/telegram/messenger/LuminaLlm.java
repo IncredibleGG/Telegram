@@ -306,6 +306,13 @@ public final class LuminaLlm {
                 cb.onError(message);
             }
         }, raw -> {
+            // Some relays answer 200 with {"error": ...} (bad key, quota ...) instead of a list:
+            // report that, not "no models returned".
+            final String replyError = modelsErrorInReply(raw);
+            if (replyError != null) {
+                cb.onError(replyError);
+                return;
+            }
             final ArrayList<String> ids = orderModels(parseModelIds(raw));
             if (ids.isEmpty()) {
                 cb.onError(LuminaLocale.getString(R.string.LuminaLlmModelsEmpty));
@@ -326,6 +333,76 @@ public final class LuminaLlm {
                 return throwableText(t);
             }
         });
+    }
+
+    /**
+     * A 2xx {@code /models} reply that carries {@code {"error": ...}} instead of {@code data} /
+     * {@code models}, mapped like an HTTP error of the model listing. Null when the reply is not
+     * such an error object. The body is only read to classify; nothing from it is shown.
+     */
+    static String modelsErrorInReply(String raw) {
+        final JSONObject json;
+        try {
+            json = new JSONObject(raw == null ? "" : raw.trim());
+        } catch (Exception e) {
+            return null;
+        }
+        if (!json.has("error") || json.has("data") || json.has("models")) {
+            return null;
+        }
+        final Object err = json.opt("error");
+        final JSONObject e = err instanceof JSONObject ? (JSONObject) err : null;
+        int code = 0;
+        if (e != null) {
+            code = embeddedStatus(e.opt("code"));
+            if (code == 0) {
+                code = embeddedStatus(e.opt("status"));
+            }
+        }
+        if (code == 0) {
+            code = embeddedStatus(json.opt("status"));
+        }
+        if (code == 0) {
+            code = embeddedStatus(json.opt("code"));
+        }
+        if (code == 404 || code == 405) {
+            return LuminaLocale.getString(R.string.LuminaLlmModelsNoList);
+        }
+        if (code > 0) {
+            return statusText(code, null, null);
+        }
+        String hint = e != null ? str(e, "type") + " " + str(e, "code") + " " + str(e, "message")
+                : (err instanceof String ? (String) err : "");
+        hint = hint.toLowerCase(Locale.ROOT);
+        if (hint.contains("api key") || hint.contains("api_key") || hint.contains("apikey")
+                || hint.contains("unauthorized") || hint.contains("unauthenticated")
+                || hint.contains("authentication") || hint.contains("invalid token")
+                || hint.contains("invalid_token") || hint.contains("forbidden")
+                || hint.contains("permission")) {
+            return LuminaLocale.getString(R.string.LuminaLlmErrKey);
+        }
+        if (hint.contains("quota") || hint.contains("rate limit") || hint.contains("rate_limit")
+                || hint.contains("insufficient") || hint.contains("balance")) {
+            return LuminaLocale.getString(R.string.LuminaLlmErrQuota);
+        }
+        return LuminaLocale.getString(R.string.LuminaLlmErrBadResponse);
+    }
+
+    /** An HTTP-like status (400..599) embedded in an error object, or 0. */
+    private static int embeddedStatus(Object v) {
+        int n = 0;
+        if (v instanceof Number) {
+            n = ((Number) v).intValue();
+        } else if (v instanceof String) {
+            final String t = ((String) v).trim();
+            if (t.length() == 3) {
+                try {
+                    n = Integer.parseInt(t);
+                } catch (NumberFormatException ignore) {
+                }
+            }
+        }
+        return n >= 400 && n <= 599 ? n : 0;
     }
 
     /** Model ids from an OpenAI-style list ({@code data[].id}); also accepts {@code models[]} / a bare array. */
