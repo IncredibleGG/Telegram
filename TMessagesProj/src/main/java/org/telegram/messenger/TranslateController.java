@@ -1526,7 +1526,8 @@ public class TranslateController extends BaseController {
         Utilities.Callback4<Boolean, Integer, TLRPC.TL_textWithEntities, String> callback
     ) {
         final boolean fallbackTelegram = LuminaConfig.getBoolean("translateFallbackTelegram", true);
-        LuminaTranslators.current().translate(text, toLanguage, new LuminaTranslator.Callback() {
+        final LuminaTranslator provider = LuminaTranslators.current();
+        provider.translate(text, toLanguage, new LuminaTranslator.Callback() {
             @Override
             public void onResult(String translated, String detectedSourceLang) {
                 if (translated == null) {
@@ -1555,7 +1556,11 @@ public class TranslateController extends BaseController {
                         }
                     });
                 } else {
-                    luminaProviderTranslateFailed(dialogId, id, rateLimited, loadingTranslations);
+                    // LuminaGram 1.5.2: no Telegram fallback, so say what the user's own LLM endpoint
+                    // reported (model does not exist / key rejected / quota / ...). Other providers keep
+                    // the generic Telegram text.
+                    final String detail = "llm".equals(provider.id()) ? message : null;
+                    luminaProviderTranslateFailed(dialogId, id, rateLimited, loadingTranslations, detail);
                 }
             }
         });
@@ -1582,8 +1587,13 @@ public class TranslateController extends BaseController {
     // LuminaGram: mirror the batch path's terminal-failure handling (stop translating the dialog, show the
     // rate-limited/generic bulletin) and clear the loading flag so the UI does not spin forever.
     private void luminaProviderTranslateFailed(long dialogId, int id, boolean rateLimited, Set<Integer> loadingTranslations) {
+        luminaProviderTranslateFailed(dialogId, id, rateLimited, loadingTranslations, null);
+    }
+
+    private void luminaProviderTranslateFailed(long dialogId, int id, boolean rateLimited, Set<Integer> loadingTranslations, String detail) {
         toggleTranslatingDialog(dialogId, false);
-        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_ERROR, getString(rateLimited ? R.string.TranslationFailedAlert1 : R.string.TranslationFailedAlert2));
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_ERROR,
+                !TextUtils.isEmpty(detail) ? detail : getString(rateLimited ? R.string.TranslationFailedAlert1 : R.string.TranslationFailedAlert2));
         synchronized (this) {
             loadingTranslations.remove(id);
         }

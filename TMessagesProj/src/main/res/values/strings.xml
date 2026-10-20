@@ -11235,7 +11235,7 @@
     <string name="LuminaGramSettings">LuminaGram Settings</string>
     <string name="LuminaGramSettingsInfo">Exclusive features</string>
     <string name="LuminaOnboardingTitle">Welcome to LuminaGram</string>
-    <string name="LuminaOnboardingMessage">LuminaGram adds private, exclusive tools on top of Telegram:\n\n• Translate — translate any chat, or auto-translate messages before you send.\n• Dual language — show the original text next to its translation.\n• Disguise &amp; vault — hide the app behind a harmless-looking decoy app with its own unlock code.\n• Privacy — ghost mode hides your typing, online status and read receipts.\n\nTap any row below to set these up.</string>
+    <string name="LuminaOnboardingMessage">LuminaGram adds private, exclusive tools on top of Telegram:\n\n• Translate — translate any chat, or auto-translate messages before you send.\n• Dual language — show the original text next to its translation.\n• Disguise &amp; vault — hide the app behind a harmless-looking decoy app with its own unlock code.\n• Safety — link safety check, crypto address paste guard, and removal of photo location data.\n\nTap any row below to set these up.</string>
     <string name="LuminaOnboardingGotIt">Got it</string>
     <string name="LuminaGramChatList">Chat list</string>
     <string name="LuminaHideTabs">Hide folder tabs</string>
@@ -11913,7 +11913,7 @@
     <string name="LuminaExplainNoKey">Set your LLM API key in Translation settings first.</string>
     <string name="LuminaExplainError">Couldn\'t explain this message. Please try again.</string>
     <string name="LuminaExplainSetting">Explain a message</string>
-    <string name="LuminaExplainSettingInfo">Adds an \"Explain\" action to the message long-press menu. It uses your own translation LLM key to break a message down into its literal meaning, real tone, cultural or slang notes, and a suggested reply.</string>
+    <string name="LuminaExplainSettingInfo">Adds an \"Explain\" action to the message long-press menu. It uses your own translation LLM key to break a message down into its literal meaning, real tone, cultural or slang notes, and a suggested reply. Up to 8 earlier messages from the same chat are sent along as context, with senders shown only as “Me” or A, B, C (never in secret chats, Saved Messages or Telegram service chats).</string>
     <!-- LuminaGram image OCR translation (full-screen photo viewer) -->
     <string name="LuminaOcrTranslate">Translate text in image</string>
     <string name="LuminaOcrOriginal">Original</string>
@@ -11988,6 +11988,21 @@
     <string name="LuminaBackupProviderUnrecognized">Unrecognized address (cannot be verified)</string>
     <string name="LuminaSttViewOnceCloud">View-once messages can only be transcribed with the on-device engine.</string>
     <string name="LuminaTrProtectedChat">Automatic translation is off in Saved Messages and Telegram service chats to protect login codes and private notes. You can still translate a single message from its menu.</string>
+    <!-- LuminaGram 1.5.2: detect LLM models, precise LLM errors -->
+    <string name="LuminaLlmDetectModels">Detect available models</string>
+    <string name="LuminaLlmPickModel">Choose a model</string>
+    <string name="LuminaLlmModelsEmpty">This service returned no models.</string>
+    <string name="LuminaLlmModelsNoList">This service does not provide a model list. Type the model name manually.</string>
+    <string name="LuminaLlmErrModelNotFound">Model “%1$s” does not exist on this service. Tap “Detect available models” to pick one.</string>
+    <string name="LuminaLlmErrKey">The service rejected the API key. Check that the key is correct.</string>
+    <string name="LuminaLlmErrQuota">Quota used up or too many requests. Try again later or check your plan with the service.</string>
+    <string name="LuminaLlmErrServer">The service had a temporary error (HTTP %1$s). Try again later.</string>
+    <string name="LuminaLlmErrEndpoint">Nothing found at this address (HTTP 404). Check the base URL — it usually ends in /v1.</string>
+    <string name="LuminaLlmErrOther">The service returned an error (HTTP %1$s).</string>
+    <string name="LuminaLlmErrNetwork">Cannot connect. Check the base URL and your network.</string>
+    <string name="LuminaLlmErrRedirect">The service redirected to another address. Blocked to protect your API key.</string>
+    <string name="LuminaLlmErrBadUrl">The base URL is not valid.</string>
+    <string name="LuminaLlmErrBadResponse">The service\'s reply could not be read. Check the base URL and model.</string>
 
     <string name="RoundVideoSettings">Round Video</string>
     <string name="RoundVideoGeneral">Recorder</string>

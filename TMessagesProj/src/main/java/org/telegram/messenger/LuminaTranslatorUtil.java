@@ -25,7 +25,9 @@ import java.util.regex.Pattern;
  *   <li>Never log request headers, bodies or the raw response — they may carry the user's API
  *       key. Errors surfaced to callbacks are only a short category ("Network error",
  *       "Timeout", "Invalid response", "Redirect blocked") or "HTTP &lt;status&gt;"; never an
- *       exception message, URL, query string, header or response body (see {@link #errorText}).</li>
+ *       exception message, URL, query string, header or response body (see {@link #errorText}).
+ *       An {@link ErrorMapper} (the LLM provider's {@link LuminaLlm}) may replace that with a
+ *       fixed localized sentence; it reads the body only to classify the failure.</li>
  *   <li>A request that carries a credential (an {@code Authorization} header or any header whose
  *       name mentions a key / token) does not follow redirects blindly: a redirect to the SAME
  *       host is followed (as before), while one to another host or from https to http fails
@@ -59,6 +61,20 @@ final class LuminaTranslatorUtil {
     }
 
     /**
+     * Turns a failure into the text handed to {@code cb.onError}. Lets a provider (the LLM one,
+     * see {@link LuminaLlm}) say WHAT went wrong in the user's language instead of "HTTP 404".
+     * Implementations must never return the response body, the URL or a header: the body is
+     * passed in for classification only.
+     */
+    interface ErrorMapper {
+        /** HTTP status &gt;= 400. Runs on the network thread. */
+        String forStatus(int code, String body);
+
+        /** Transport / parse failure. May run on the network thread or on the UI thread. */
+        String forThrowable(Throwable t);
+    }
+
+    /**
      * Perform an HTTP request off the UI thread. On HTTP < 400, {@code onOk} runs on
      * the UI thread with the response body; any 4xx/5xx or transport error routes to
      * {@code cb.onError(...)} on the UI thread. Both {@code cb} and {@code onOk} fire
@@ -66,6 +82,17 @@ final class LuminaTranslatorUtil {
      */
     static void http(final String method, final String url, final Map<String, String> headers,
                      final String body, final LuminaTranslator.Callback cb, final OnBody onOk) {
+        http(method, url, headers, body, cb, onOk, null);
+    }
+
+    /**
+     * {@link #http(String, String, Map, String, LuminaTranslator.Callback, OnBody)} with the error
+     * text chosen by {@code mapper} (null keeps the "HTTP &lt;status&gt;" / category text). The
+     * {@code rateLimited} flag is computed exactly as before either way.
+     */
+    static void http(final String method, final String url, final Map<String, String> headers,
+                     final String body, final LuminaTranslator.Callback cb, final OnBody onOk,
+                     final ErrorMapper mapper) {
         Utilities.globalQueue.postRunnable(() -> {
             HttpURLConnection c = null;
             try {
@@ -84,18 +111,19 @@ final class LuminaTranslatorUtil {
                 final String raw = readAll(in);
                 if (code >= 400) {
                     final boolean rl = code == 429 || code == 456 || code == 403;
-                    AndroidUtilities.runOnUIThread(() -> cb.onError(rl, "HTTP " + code));
+                    final String msg = mapper != null ? mapper.forStatus(code, raw) : "HTTP " + code;
+                    AndroidUtilities.runOnUIThread(() -> cb.onError(rl, msg));
                     return;
                 }
                 AndroidUtilities.runOnUIThread(() -> {
                     try {
                         onOk.run(raw);
                     } catch (Exception e) {
-                        cb.onError(false, errorText(e));
+                        cb.onError(false, mapper != null ? mapper.forThrowable(e) : errorText(e));
                     }
                 });
             } catch (Exception e) {
-                final String msg = errorText(e);
+                final String msg = mapper != null ? mapper.forThrowable(e) : errorText(e);
                 AndroidUtilities.runOnUIThread(() -> cb.onError(false, msg));
             } finally {
                 if (c != null) {

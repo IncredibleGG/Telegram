@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -10,6 +11,7 @@ import android.widget.FrameLayout;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LuminaConfig;
+import org.telegram.messenger.LuminaLlm;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.LuminaTranslator;
 import org.telegram.messenger.LuminaTranslators;
@@ -19,6 +21,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
@@ -68,8 +71,33 @@ public class LuminaTranslateActivity extends BaseFragment {
     private static final int ITEM_EXPLAIN = 20;
     private static final int ITEM_GROUP_SKIP = 21;
     private static final int ITEM_REVERSE_VOICE = 22;
+    private static final int ITEM_DETECT_MODELS = 23;
+
+    /** Bundle flag: open the "Detect available models" picker as soon as the screen is shown. */
+    private static final String ARG_DETECT_MODELS = "luminaDetectModels";
 
     private UniversalRecyclerView listView;
+    private boolean autoDetectStarted;
+    // Bumped by every detection and by cancelling its spinner; a stale result is dropped.
+    private int detectGeneration;
+
+    public LuminaTranslateActivity() {
+        super();
+    }
+
+    public LuminaTranslateActivity(Bundle args) {
+        super(args);
+    }
+
+    /**
+     * This screen with the model picker opened right away -- the action offered next to a
+     * "model does not exist on this service" error (Explain).
+     */
+    public static LuminaTranslateActivity withModelPicker() {
+        final Bundle args = new Bundle();
+        args.putBoolean(ARG_DETECT_MODELS, true);
+        return new LuminaTranslateActivity(args);
+    }
 
     @Override
     public View createView(Context context) {
@@ -94,6 +122,10 @@ public class LuminaTranslateActivity extends BaseFragment {
         actionBar.setAdaptiveBackground(listView);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
+        if (!autoDetectStarted && arguments != null && arguments.getBoolean(ARG_DETECT_MODELS, false)) {
+            autoDetectStarted = true;
+            AndroidUtilities.runOnUIThread(this::detectModels, 350);
+        }
         return fragmentView;
     }
 
@@ -196,6 +228,11 @@ public class LuminaTranslateActivity extends BaseFragment {
                     LuminaConfig.getString("translateModel", LuminaTranslators.LLM_DEFAULT_MODEL)));
         }
         if ("llm".equals(provider.id())) {
+            // GET {baseURL}/models with the same key, then pick one -- no need to know or type the
+            // exact model id the service expects.
+            items.add(UItem.asButton(ITEM_DETECT_MODELS, LuminaLocale.getString(R.string.LuminaLlmDetectModels)));
+        }
+        if ("llm".equals(provider.id())) {
             items.add(UItem.asButton(ITEM_SYSTEM_PROMPT, LuminaLocale.getString(R.string.LuminaTranslateSystemPrompt)));
         }
         items.add(UItem.asButton(ITEM_TEST, LuminaLocale.getString(R.string.LuminaTranslateTest)));
@@ -280,6 +317,9 @@ public class LuminaTranslateActivity extends BaseFragment {
             case ITEM_SYSTEM_PROMPT:
                 showTextInputDialog("translatePrompt", LuminaLocale.getString(R.string.LuminaTranslateSystemPrompt),
                         LuminaTranslators.LLM_DEFAULT_PROMPT, false, true);
+                break;
+            case ITEM_DETECT_MODELS:
+                detectModels();
                 break;
             case ITEM_TEST:
                 runProviderTest();
@@ -415,9 +455,88 @@ public class LuminaTranslateActivity extends BaseFragment {
                 }
                 final String prefix = LuminaLocale.getString(R.string.LuminaTranslateTestFailed);
                 final CharSequence text = (message == null || message.length() == 0) ? prefix : (prefix + ": " + message);
+                if ("llm".equals(LuminaTranslators.current().id()) && LuminaLlm.isModelNotFound(message)) {
+                    // The model name is wrong for this service: offer the picker right in the error.
+                    BulletinFactory.of(LuminaTranslateActivity.this).createSimpleBulletin(R.raw.chats_infotip, text,
+                            LuminaLocale.getString(R.string.LuminaLlmDetectModels), Bulletin.DURATION_PROLONG,
+                            LuminaTranslateActivity.this::detectModels).show();
+                    return;
+                }
                 BulletinFactory.of(LuminaTranslateActivity.this).createErrorBulletin(text).show();
             }
         });
+    }
+
+    /**
+     * "Detect available models": GET {baseURL}/models with the LLM key (LuminaLlm.listModels: same
+     * auth header, redirect rules and 15s timeout as translation), then a picker of the returned
+     * ids, likely chat models first. Choosing one saves it as the model.
+     */
+    private void detectModels() {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final int gen = ++detectGeneration;
+        final AlertDialog progress = new AlertDialog(context, AlertDialog.ALERT_TYPE_SPINNER, getResourceProvider());
+        progress.setCanCancel(true);
+        progress.setOnCancelListener(d -> {
+            if (gen == detectGeneration) {
+                detectGeneration++;
+            }
+        });
+        progress.show();
+        LuminaLlm.listModels(new LuminaLlm.ModelsCallback() {
+            @Override
+            public void onModels(ArrayList<String> ids) {
+                dismissQuietly(progress);
+                if (gen != detectGeneration || getParentActivity() == null) {
+                    return;
+                }
+                showModelPicker(ids);
+            }
+
+            @Override
+            public void onError(String message) {
+                dismissQuietly(progress);
+                if (gen != detectGeneration || getParentActivity() == null) {
+                    return;
+                }
+                BulletinFactory.of(LuminaTranslateActivity.this).createErrorBulletin(
+                        message == null || message.length() == 0
+                                ? LuminaLocale.getString(R.string.LuminaLlmErrNetwork) : message).show();
+            }
+        });
+    }
+
+    private static void dismissQuietly(AlertDialog dialog) {
+        try {
+            dialog.dismiss();
+        } catch (Exception ignore) {
+        }
+    }
+
+    private void showModelPicker(final ArrayList<String> ids) {
+        final Context context = getParentActivity();
+        if (context == null || ids == null || ids.isEmpty()) {
+            return;
+        }
+        final String current = LuminaConfig.getString("translateModel", LuminaTranslators.LLM_DEFAULT_MODEL);
+        final CharSequence[] names = new CharSequence[ids.size()];
+        for (int i = 0; i < ids.size(); ++i) {
+            final String id = ids.get(i);
+            names[i] = id.equals(current) ? "✓ " + id : id;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(context, getResourceProvider());
+        builder.setTitle(LuminaLocale.getString(R.string.LuminaLlmPickModel));
+        builder.setItems(names, (dialog, which) -> {
+            if (which >= 0 && which < ids.size()) {
+                LuminaConfig.putString("translateModel", ids.get(which));
+                update();
+            }
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     /**

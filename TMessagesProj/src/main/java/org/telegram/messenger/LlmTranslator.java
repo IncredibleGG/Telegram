@@ -83,7 +83,15 @@ final class LlmTranslator implements LuminaTranslator {
         final Map<String, String> headers = new HashMap<>();
         headers.put("Authorization", "Bearer " + key);
         headers.put("Content-Type", "application/json");
+        // LuminaGram: failures map to one precise, localized sentence (model does not exist on this
+        // service / key rejected / quota / temporary error / cannot connect), see LuminaLlm. The
+        // body is read only to classify; it, the URL and the key are never shown.
         LuminaTranslatorUtil.http("POST", url, headers, body, cb, raw -> {
+            final String replyError = LuminaLlm.errorInReply(raw, model);
+            if (replyError != null) {
+                cb.onError(false, replyError);
+                return;
+            }
             final JSONObject json = new JSONObject(raw);
             final String content = json.getJSONArray("choices")
                     .getJSONObject(0)
@@ -91,6 +99,6 @@ final class LlmTranslator implements LuminaTranslator {
                     .getString("content")
                     .trim();
             cb.onResult(content, null);
-        });
+        }, LuminaLlm.chatErrors(model));
     }
 }

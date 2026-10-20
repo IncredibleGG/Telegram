@@ -189,6 +189,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaExplain;
+import org.telegram.messenger.LuminaLlm;
 import org.telegram.messenger.LuminaFileGuard;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.LuminaScreenshotDetector;
@@ -47239,7 +47240,13 @@ public class ChatActivity extends BaseFragment implements
         final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
         progress.setCanCancel(true);
         progress.show();
-        LuminaExplain.explain(cs.toString(), new LuminaExplain.Callback() {
+        // LuminaGram 1.5.2: send the earlier messages of this chat along (anonymised, capped) so the
+        // model can resolve slang, references and "that". Only from the normal chat timeline, never
+        // from scheduled / pinned / search lists; LuminaExplain.buildContext itself returns null for
+        // secret chats and protected dialogs (Saved Messages, service accounts, BotFather, ...).
+        final LuminaExplain.ExplainContext explainContext = chatMode == MODE_DEFAULT
+                ? LuminaExplain.buildContext(currentAccount, msg, messages) : null;
+        LuminaExplain.explain(cs.toString(), explainContext, new LuminaExplain.Callback() {
             @Override
             public void onResult(String text) {
                 try {
@@ -47274,6 +47281,11 @@ public class ChatActivity extends BaseFragment implements
                         .setTitle(LuminaLocale.getString(R.string.LuminaExplainTitle))
                         .setMessage(msgText)
                         .setPositiveButton(LocaleController.getString(R.string.OK), null);
+                if (LuminaLlm.isModelNotFound(message)) {
+                    // The configured model does not exist on this service: jump straight to the picker.
+                    builder.setNeutralButton(LuminaLocale.getString(R.string.LuminaLlmDetectModels),
+                            (dialog, which) -> presentFragment(LuminaTranslateActivity.withModelPicker()));
+                }
                 showDialog(builder.create());
             }
         });
