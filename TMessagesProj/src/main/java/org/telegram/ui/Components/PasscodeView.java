@@ -1013,12 +1013,18 @@ public class PasscodeView extends FrameLayout implements NotificationCenter.Noti
             try {
                 // 13.0 sync: upstream made PasscodeView reusable as a plain confirmation view
                 // (isAppLock() == false); the duress code only ever applies to the real app lock.
-                if (isAppLock() && LuminaConfig.getBoolean("fakeCrashEnabled", false)) {
-                    String fakeCrashCode = LuminaConfig.getString("fakeCrashCode", "");
+                if (isAppLock() && LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false)) {
+                    String fakeCrashCode = LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, "");
                     if (fakeCrashCode != null && fakeCrashCode.length() > 0 && fakeCrashCode.equals(password)) {
                         passwordEditText.setText("");
                         passwordEditText2.eraseAllCharacters(true);
-                        showFakeCrash();
+                        // Mode "exit": close at once through the same path the fake alert's
+                        // button uses. Default / unset mode keeps the fake "keeps stopping" alert.
+                        if (LuminaConfig.isFakeCrashExitMode()) {
+                            exitApp();
+                        } else {
+                            showFakeCrash();
+                        }
                         return;
                     }
                 }

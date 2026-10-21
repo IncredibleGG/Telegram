@@ -13,6 +13,7 @@ import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaDisguiseController;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -29,7 +30,12 @@ import java.util.ArrayList;
  * LuminaDisguiseActivity — "App disguise" settings.
  *
  * Mirrors {@link LuminaAppearanceActivity} / {@link LuminaSecurityActivity}'s
- * UItem / UniversalRecyclerView pattern. Two sections:
+ * UItem / UniversalRecyclerView pattern. Three sections:
+ *
+ *  0. Fake-crash duress code (top of the page; moved here from LuminaSecurityActivity with the
+ *     same {@link LuminaConfig} keys, so existing settings carry over): an enable switch, the
+ *     mode ({@code fakeCrashMode}: show the fake "keeps stopping" alert, the default, or exit at
+ *     once) and the code itself. PasscodeView reads all three.
  *
  *  1. App disguise: a master switch ({@code disguiseEnabled}) plus selectable preset
  *     rows (Default / Calculator / Notes / Clock). Picking a preset stores
@@ -76,6 +82,10 @@ public class LuminaDisguiseActivity extends BaseFragment {
     private static final int ID_VAULT_SKIN_NOTEPAD = 9;
     private static final int ID_VAULT_SKIN_CALCULATOR = 10;
     private static final int ID_VAULT_SET_CODE = 11;
+    private static final int ID_FAKECRASH_ENABLED = 20;
+    private static final int ID_FAKECRASH_MODE_DIALOG = 21;
+    private static final int ID_FAKECRASH_MODE_EXIT = 22;
+    private static final int ID_FAKECRASH_SET_CODE = 23;
 
     private static final String KEY_DISGUISE_ENABLED = LuminaDisguiseController.KEY_ENABLED;
     private static final String KEY_DISGUISE_PRESET = LuminaDisguiseController.KEY_PRESET;
@@ -129,6 +139,8 @@ public class LuminaDisguiseActivity extends BaseFragment {
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        fillFakeCrashItems(items);
+
         boolean enabled = LuminaConfig.getBoolean(KEY_DISGUISE_ENABLED, false);
 
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaDisguiseSectionHeader)));
@@ -184,6 +196,41 @@ public class LuminaDisguiseActivity extends BaseFragment {
     }
 
     /**
+     * Fake-crash duress code, first section of the page. The mode radios and the code row only
+     * show while the switch is on (same pattern as the vault below). Mode rows use asRadio2 so
+     * each choice carries its own one-line explanation.
+     */
+    private void fillFakeCrashItems(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashHeader)));
+        boolean fakeCrashEnabled = LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false);
+        items.add(UItem.asSwitch(ID_FAKECRASH_ENABLED, LuminaLocale.getString(R.string.LuminaSecurityFakeCrashEnable))
+                .setChecked(fakeCrashEnabled));
+        if (fakeCrashEnabled) {
+            boolean exitMode = LuminaConfig.isFakeCrashExitMode();
+            items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaFakeCrashModeHeader)));
+            items.add(UItem.asRadio2(ID_FAKECRASH_MODE_DIALOG,
+                    LuminaLocale.getString(R.string.LuminaFakeCrashModeDialog),
+                    LuminaLocale.getString(R.string.LuminaFakeCrashModeDialogInfo))
+                    .setChecked(!exitMode));
+            items.add(UItem.asRadio2(ID_FAKECRASH_MODE_EXIT,
+                    LuminaLocale.getString(R.string.LuminaFakeCrashModeExit),
+                    LuminaLocale.getString(R.string.LuminaFakeCrashModeExitInfo))
+                    .setChecked(exitMode));
+            items.add(UItem.asButton(ID_FAKECRASH_SET_CODE,
+                    LuminaLocale.getString(R.string.LuminaSecurityFakeCrashSetCode), fakeCrashCodeValueText()));
+        }
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashInfo)));
+    }
+
+    private CharSequence fakeCrashCodeValueText() {
+        String code = LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, "");
+        boolean set = code != null && code.length() > 0;
+        return LuminaLocale.getString(set
+                ? R.string.LuminaSecurityFakeCrashCodeSet
+                : R.string.LuminaSecurityFakeCrashCodeNotSet);
+    }
+
+    /**
      * Initial checked state of the vault switch. Reads {@code vaultEnabled}, falling back
      * to the legacy {@code decoyLockEnabled} flag so existing decoy-lock users still show ON.
      */
@@ -235,6 +282,22 @@ public class LuminaDisguiseActivity extends BaseFragment {
 
     private void onClick(UItem item, View view, int position, float x, float y) {
         switch (item.id) {
+            case ID_FAKECRASH_ENABLED:
+                LuminaConfig.putBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED,
+                        !LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false));
+                update();
+                break;
+            case ID_FAKECRASH_MODE_DIALOG:
+                LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_MODE, LuminaConfig.FAKE_CRASH_MODE_DIALOG);
+                update();
+                break;
+            case ID_FAKECRASH_MODE_EXIT:
+                LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_MODE, LuminaConfig.FAKE_CRASH_MODE_EXIT);
+                update();
+                break;
+            case ID_FAKECRASH_SET_CODE:
+                showFakeCrashCodeDialog();
+                break;
             case ID_DISGUISE_ENABLED: {
                 boolean enable = !LuminaConfig.getBoolean(KEY_DISGUISE_ENABLED, false);
                 // The user is driving the launcher icon by hand from now on: hand ownership
@@ -428,6 +491,59 @@ public class LuminaDisguiseActivity extends BaseFragment {
         } catch (Throwable ignore) {
             // An icon that did not change is always better than a crash in settings.
         }
+    }
+
+    /**
+     * Prompt for the fake-crash duress code (moved verbatim from LuminaSecurityActivity). Stored
+     * in plaintext under {@code fakeCrashCode} via {@link LuminaConfig}; this is a SEPARATE local
+     * code, never the Telegram passcode.
+     */
+    private void showFakeCrashCodeDialog() {
+        final Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor edit = new EditTextBoldCursor(context);
+        edit.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
+        edit.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        edit.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint));
+        edit.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack));
+        edit.setCursorSize(AndroidUtilities.dp(20));
+        edit.setCursorWidth(1.5f);
+        edit.setBackgroundDrawable(null);
+        edit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        edit.setSingleLine(true);
+        edit.setText(LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, ""));
+        edit.setSelection(edit.length());
+
+        final FrameLayout container = new FrameLayout(context);
+        container.addView(edit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.CENTER_VERTICAL, 24, 6, 24, 0));
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeDialogTitle));
+        builder.setView(container);
+        builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
+            final String entered = edit.getText().toString().trim();
+            // Duress code must NOT equal the real Telegram passcode. PasscodeView runs the
+            // fake-crash check BEFORE SharedConfig.checkPasscode, so a collision would fire the
+            // fake crash on every correct unlock and lock the user out permanently. Reject it.
+            if (!entered.isEmpty() && SharedConfig.checkPasscode(entered)) {
+                if (getParentActivity() != null) {
+                    AlertDialog.Builder err = new AlertDialog.Builder(getParentActivity());
+                    err.setTitle(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeDialogTitle));
+                    err.setMessage(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeSameAsPasscode));
+                    err.setPositiveButton(LocaleController.getString(R.string.OK), null);
+                    showDialog(err.create());
+                }
+                return;
+            }
+            LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_CODE, entered);
+            update();
+            AndroidUtilities.hideKeyboard(edit);
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     private void showUnlockCodeDialog() {

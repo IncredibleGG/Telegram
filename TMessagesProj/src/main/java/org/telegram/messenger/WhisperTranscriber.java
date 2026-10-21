@@ -101,6 +101,12 @@ final class WhisperTranscriber implements LuminaTranscriber {
         final String model = LuminaConfig.getString("sttModel", "whisper-1");
         final String url = base + "/audio/transcriptions";
         final String boundary = "----LuminaGramBoundary" + System.currentTimeMillis();
+        // Voice notes are OGG/Opus; round videos arrive here as an audio-only 16 kHz WAV
+        // (LuminaVoiceToText extracts the sound track so video frames are never uploaded).
+        // The endpoint picks the decoder from the file name, so name each one after what it is.
+        final boolean wav = audio.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".wav");
+        final String partName = wav ? "voice.wav" : "voice.ogg";
+        final String partType = wav ? "audio/wav" : "audio/ogg";
 
         // Pre-computed multipart envelope: the "model" text part + the "file" part header.
         final byte[] pre = (
@@ -108,8 +114,8 @@ final class WhisperTranscriber implements LuminaTranscriber {
                         + "Content-Disposition: form-data; name=\"model\"" + CRLF + CRLF
                         + model + CRLF
                         + "--" + boundary + CRLF
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"voice.ogg\"" + CRLF
-                        + "Content-Type: audio/ogg" + CRLF + CRLF
+                        + "Content-Disposition: form-data; name=\"file\"; filename=\"" + partName + "\"" + CRLF
+                        + "Content-Type: " + partType + CRLF + CRLF
         ).getBytes(StandardCharsets.UTF_8);
         final byte[] post = (CRLF + "--" + boundary + "--" + CRLF).getBytes(StandardCharsets.UTF_8);
 

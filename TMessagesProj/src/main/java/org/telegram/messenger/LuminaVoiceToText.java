@@ -120,7 +120,7 @@ public final class LuminaVoiceToText {
                 showError(fragment, LuminaLocale.getString(R.string.LuminaSttUiError));
                 return;
             }
-            transcriber.transcribe(f, langHint, new LuminaTranscriber.Callback() {
+            final LuminaTranscriber.Callback callback = new LuminaTranscriber.Callback() {
                 @Override
                 public void onResult(final String text) {
                     AndroidUtilities.runOnUIThread(() -> {
@@ -150,11 +150,118 @@ public final class LuminaVoiceToText {
                 public void onProgress(float progress) {
                     // optional; ignored in v1
                 }
-            });
+            };
+            if (!transcriber.isOffline() && isVideoMedia(mo, f)) {
+                // Round video (mp4) + cloud engine: upload the sound track only, never the video
+                // frames. On-device engines (Vosk) keep reading the original file as before.
+                final File video = f;
+                Utilities.globalQueue.postRunnable(() -> transcribeAudioOnly(transcriber, video, langHint, callback));
+            } else {
+                transcriber.transcribe(f, langHint, callback);
+            }
         } catch (Exception e) {
             FileLog.e(e);
             autoPipelineFinished(mo, currentAccount);
             showError(fragment, LuminaLocale.getString(R.string.LuminaSttUiError));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // round video -> audio only (cloud engines)
+    // ------------------------------------------------------------------
+
+    /** Temp folder for the extracted audio; files are deleted as soon as the engine answers. */
+    private static final String AUDIO_ONLY_DIR = "lumina_stt_audio";
+    /** Leftovers older than this (e.g. the process died mid-upload) are swept on the next run. */
+    private static final long AUDIO_ONLY_STALE_MS = 10 * 60 * 1000L;
+
+    /** True for media whose file is a video container (round video / video), not a voice note. */
+    private static boolean isVideoMedia(MessageObject mo, File f) {
+        if (mo != null && (mo.isRoundVideo() || mo.isVideo())) {
+            return true;
+        }
+        final String name = f == null ? "" : f.getName().toLowerCase(java.util.Locale.ROOT);
+        return name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm") || name.endsWith(".mkv");
+    }
+
+    /**
+     * Decode the video's sound track to a 16 kHz mono WAV in the app cache, hand THAT to the
+     * cloud engine, and delete it once the engine reports back. Runs on {@link Utilities#globalQueue}.
+     * If the audio cannot be extracted the request fails; the video itself is never sent.
+     */
+    private static void transcribeAudioOnly(final LuminaTranscriber transcriber, final File video,
+                                            final String langHint, final LuminaTranscriber.Callback cb) {
+        File wav = null;
+        try {
+            final File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), AUDIO_ONLY_DIR);
+            sweepStaleAudio(dir);
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                cb.onError("Audio extraction failed");
+                return;
+            }
+            wav = new File(dir, "audio_" + System.nanoTime() + ".wav");
+            final int samples = LuminaAudioDecoder.writeWav16kMono(video, wav);
+            if (samples <= 0) {
+                deleteQuietly(wav);
+                cb.onResult("");
+                return;
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            deleteQuietly(wav);
+            cb.onError("Audio extraction failed");
+            return;
+        }
+        final File audio = wav;
+        try {
+            transcriber.transcribe(audio, langHint, new LuminaTranscriber.Callback() {
+                @Override
+                public void onResult(String text) {
+                    deleteQuietly(audio);
+                    cb.onResult(text);
+                }
+
+                @Override
+                public void onError(String message) {
+                    deleteQuietly(audio);
+                    cb.onError(message);
+                }
+
+                @Override
+                public void onProgress(float fraction) {
+                    cb.onProgress(fraction);
+                }
+            });
+        } catch (Throwable e) {
+            FileLog.e(e);
+            deleteQuietly(audio);
+            cb.onError(LuminaTranslatorUtil.errorText(e));
+        }
+    }
+
+    private static void sweepStaleAudio(File dir) {
+        try {
+            final File[] files = dir.listFiles();
+            if (files == null) {
+                return;
+            }
+            final long cutoff = System.currentTimeMillis() - AUDIO_ONLY_STALE_MS;
+            for (File file : files) {
+                if (file.isFile() && file.lastModified() < cutoff) {
+                    deleteQuietly(file);
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static void deleteQuietly(File f) {
+        try {
+            if (f != null && f.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        } catch (Throwable ignore) {
         }
     }
 

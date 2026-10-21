@@ -181,7 +181,9 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
                 int y = (oneFourth * 3 - dp(275)) / 2;
                 frameLayout2.layout(0, y, frameLayout2.getMeasuredWidth(), y + frameLayout2.getMeasuredHeight());
                 y += dp(ICON_HEIGHT_DP);
-                y += dp(122 + 17);
+                // LuminaGram: +20dp so slide 0's extra "Powered by the Telegram API" line never
+                // runs into the page dots (it can wrap to two lines on narrow screens).
+                y += dp(122 + 17 + 20);
                 int x = (getMeasuredWidth() - bottomPages.getMeasuredWidth()) / 2;
                 bottomPages.layout(x, y, x + bottomPages.getMeasuredWidth(), y + bottomPages.getMeasuredHeight());
                 viewPager.layout(0, 0, viewPager.getMeasuredWidth(), viewPager.getMeasuredHeight());
@@ -602,7 +604,11 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
             container.addView(frameLayout, 0);
 
             headerTextView.setText(titles[position]);
-            messageTextView.setText(AndroidUtilities.replaceTags(messages[position]));
+            CharSequence message = AndroidUtilities.replaceTags(messages[position]);
+            if (position == 0) {
+                message = luminaAppendPoweredBy(message);
+            }
+            messageTextView.setText(message);
 
             return frameLayout;
         }
@@ -991,6 +997,24 @@ public class IntroActivity extends BaseFragment implements NotificationCenter.No
                 messageTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             }
         } else Intro.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+    }
+
+    /**
+     * LuminaGram (Telegram API Terms of Service 2.2): the first intro slide keeps the stock text
+     * and adds one slightly smaller line saying the app is built on the Telegram API. The size
+     * span inherits the text colour, so the intro's light/dark switch keeps working.
+     */
+    private static CharSequence luminaAppendPoweredBy(CharSequence message) {
+        final String line = org.telegram.messenger.LuminaLocale.getString(R.string.LuminaIntroPoweredBy);
+        if (line == null || line.length() == 0) {
+            return message;
+        }
+        final SpannableStringBuilder sb = new SpannableStringBuilder(message);
+        sb.append('\n');
+        final int start = sb.length();
+        sb.append(line);
+        sb.setSpan(new android.text.style.RelativeSizeSpan(0.85f), start, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return sb;
     }
 
     @Override

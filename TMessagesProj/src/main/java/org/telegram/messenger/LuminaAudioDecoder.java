@@ -6,7 +6,10 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.os.Build;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -149,6 +152,54 @@ public final class LuminaAudioDecoder {
             } catch (Throwable ignore) {
             }
         }
+    }
+
+    /** Bytes per WAV header written by {@link #writeWav16kMono}: plain 44-byte RIFF/PCM header. */
+    public static final int WAV_HEADER_BYTES = 44;
+
+    /**
+     * Decode {@code input} (e.g. the AAC track of a round-video mp4) to 16 kHz mono 16-bit PCM
+     * and write it to {@code output} as a plain WAV file. Lets a cloud speech-to-text engine
+     * receive the AUDIO ONLY, so video frames never leave the device. Same off-main-thread rule
+     * as {@link #decodeToPcm16kMono(File)}.
+     *
+     * @return the number of samples written; 0 for silent / audio-less-but-decodable input.
+     */
+    public static int writeWav16kMono(File input, File output) throws Exception {
+        final short[] pcm = decodeToPcm16kMono(input);
+        final int dataBytes = pcm.length * 2;
+        final OutputStream os = new BufferedOutputStream(new FileOutputStream(output));
+        try {
+            final ByteBuffer header = ByteBuffer.allocate(WAV_HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            header.put(new byte[]{'R', 'I', 'F', 'F'});
+            header.putInt(36 + dataBytes);
+            header.put(new byte[]{'W', 'A', 'V', 'E', 'f', 'm', 't', ' '});
+            header.putInt(16);                  // fmt chunk size
+            header.putShort((short) 1);         // PCM
+            header.putShort((short) 1);         // mono
+            header.putInt(TARGET_RATE);
+            header.putInt(TARGET_RATE * 2);     // byte rate
+            header.putShort((short) 2);         // block align
+            header.putShort((short) 16);        // bits per sample
+            header.put(new byte[]{'d', 'a', 't', 'a'});
+            header.putInt(dataBytes);
+            os.write(header.array());
+
+            final ByteBuffer chunk = ByteBuffer.allocate(16 * 1024).order(ByteOrder.LITTLE_ENDIAN);
+            for (short sample : pcm) {
+                if (chunk.remaining() < 2) {
+                    os.write(chunk.array(), 0, chunk.position());
+                    chunk.clear();
+                }
+                chunk.putShort(sample);
+            }
+            if (chunk.position() > 0) {
+                os.write(chunk.array(), 0, chunk.position());
+            }
+        } finally {
+            os.close();
+        }
+        return pcm.length;
     }
 
     // ---- helpers ----

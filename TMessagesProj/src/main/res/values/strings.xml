@@ -11537,9 +11537,16 @@
     <string name="LuminaSecurityFakeCrashCodeNotSet">Not set</string>
     <string name="LuminaSecurityFakeCrashCodeDialogTitle">Fake-crash code</string>
     <string name="LuminaSecurityFakeCrashCodeSameAsPasscode">This code can\'t be the same as your passcode lock.</string>
-    <string name="LuminaSecurityFakeCrashInfo">When on, entering this code at the passcode screen shows a fake Android crash and closes the app instead of unlocking. This code is separate from your Telegram passcode and from the decoy calculator lock.</string>
+    <string name="LuminaSecurityFakeCrashInfo">When on, entering this code at the passcode screen closes the app instead of unlocking it, either right away or after a fake Android crash alert. This code is separate from your Telegram passcode and from the decoy calculator lock.</string>
     <string name="LuminaFakeCrashTitle">LuminaGram keeps stopping</string>
     <string name="LuminaFakeCrashCloseApp">Close app</string>
+    <string name="LuminaFakeCrashModeHeader">When this code is entered</string>
+    <string name="LuminaFakeCrashModeDialog">Show fake crash alert</string>
+    <string name="LuminaFakeCrashModeDialogInfo">Shows a system-style “LuminaGram keeps stopping” alert first; the app closes when “Close app” is tapped.</string>
+    <string name="LuminaFakeCrashModeExit">Exit immediately</string>
+    <string name="LuminaFakeCrashModeExitInfo">Closes the app at once, without showing any alert.</string>
+    <!-- LuminaGram intro slide 0: Telegram API Terms of Service 2.2 attribution -->
+    <string name="LuminaIntroPoweredBy">Powered by the Telegram API, part of the Telegram ecosystem.</string>
     <!-- LuminaGram encrypted local backup (export / import) -->
     <string name="LuminaBackupTitle">Encrypted backup</string>
     <string name="LuminaBackupExportHeader">Export</string>

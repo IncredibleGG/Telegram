@@ -1553,6 +1553,25 @@ public class LocaleController {
         return value;
     }
 
+    // LuminaGram: AppName / AppNameBeta are the app's own name, so they read the same in every
+    // language. luminaRebrand() only swaps the Latin word "Telegram"; langpacks that transliterate
+    // it (Arabic, Korean, Persian, ...) would otherwise still put Telegram's name wherever the app
+    // names itself (alert titles, the main-screen wordmark's accessibility label, ...).
+    private static final String LUMINA_APP_NAME = "LuminaGram";
+
+    private static String luminaBrandLock(String key, int res, String value) {
+        if (value == null || !isLuminaBrandLocked(key, res)) {
+            return value;
+        }
+        if ("AppName".equals(key) || (res != 0 && res == R.string.AppName)) {
+            return LUMINA_APP_NAME;
+        }
+        if ("AppNameBeta".equals(key) || (res != 0 && res == R.string.AppNameBeta)) {
+            return LUMINA_APP_NAME + " Beta";
+        }
+        return luminaRebrand(value);
+    }
+
     private String getStringInternal(String key, int res) {
         return getStringInternal(key, null, res);
     }
@@ -1562,9 +1581,7 @@ public class LocaleController {
         if (value == null) {
             return "LOC_ERR:" + key;
         }
-        if (value != null && isLuminaBrandLocked(key, res)) {
-            value = luminaRebrand(value);
-        }
+        value = luminaBrandLock(key, res, value);
         return value;
     }
 
@@ -1748,9 +1765,7 @@ public class LocaleController {
                 return "LOC_ERR: " + key;
             }
 
-            if (value != null && isLuminaBrandLocked(key, res)) {
-                value = luminaRebrand(value);
-            }
+            value = luminaBrandLock(key, res, value);
             if (getInstance().currentLocale != null) {
                 return String.format(getInstance().currentLocale, value, args);
             } else {
@@ -1777,9 +1792,7 @@ public class LocaleController {
                 return "LOC_ERR: " + key;
             }
 
-            if (value != null && isLuminaBrandLocked(key, res)) {
-                value = luminaRebrand(value);
-            }
+            value = luminaBrandLock(key, res, value);
             SpannableStringBuilder builder = new SpannableStringBuilder(value);
             for (int i = 0; i < args.length; i++) {
                 String formatter = "s";

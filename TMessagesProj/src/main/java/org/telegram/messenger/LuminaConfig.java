@@ -767,6 +767,23 @@ public class LuminaConfig {
         putString(KEY_MY_LANGUAGES, joinLangSet(parseLangSet(raw)));
     }
 
+    // ---- Fake-crash duress code (LuminaGram) ----
+    // A separate LOCAL code (never the Telegram passcode) that, typed at the app-lock passcode
+    // screen, closes the app instead of unlocking. Read in PasscodeView, edited in
+    // LuminaDisguiseActivity. KEY_FAKE_CRASH_MODE picks what happens: "dialog" (default, also when
+    // the key was never written, so existing users keep the behaviour they tested) shows the fake
+    // "LuminaGram keeps stopping" alert first; "exit" closes the app at once with no alert.
+    public static final String KEY_FAKE_CRASH_ENABLED = "fakeCrashEnabled";
+    public static final String KEY_FAKE_CRASH_CODE = "fakeCrashCode";
+    public static final String KEY_FAKE_CRASH_MODE = "fakeCrashMode";
+    public static final String FAKE_CRASH_MODE_DIALOG = "dialog";
+    public static final String FAKE_CRASH_MODE_EXIT = "exit";
+
+    /** True only when the duress code should close the app with no alert at all. */
+    public static boolean isFakeCrashExitMode() {
+        return FAKE_CRASH_MODE_EXIT.equals(getString(KEY_FAKE_CRASH_MODE, FAKE_CRASH_MODE_DIALOG));
+    }
+
     // ---- Single-chat lock / private folder (LuminaGram) ----
     // A purely LOCAL, display-only "private folder": dialogIds the user chose to hide from the
     // chat list and search until they type a secret reveal code. Stored only in the app-private

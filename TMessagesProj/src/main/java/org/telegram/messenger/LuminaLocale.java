@@ -376,7 +376,7 @@ public final class LuminaLocale {
         zhHans.put("LuminaSecurityFakeCrashCodeNotSet", "未设置");
         zhHans.put("LuminaSecurityFakeCrashCodeDialogTitle", "假崩溃密码");
         zhHans.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "不能与你的密码锁相同");
-        zhHans.put("LuminaSecurityFakeCrashInfo", "开启后，在密码锁屏输入此密码将显示伪造的 Android 崩溃提示并关闭应用，而不是解锁。此密码独立于你的 Telegram 密码，也独立于伪装计算器锁。");
+        zhHans.put("LuminaSecurityFakeCrashInfo", "开启后，在密码锁屏输入此密码会关闭应用而不是解锁：可直接退出，或先显示伪造的 Android 崩溃提示。此密码独立于你的 Telegram 密码，也独立于伪装计算器锁。");
         zhHans.put("LuminaFakeCrashTitle", "LuminaGram 一直停止运行");
         zhHans.put("LuminaFakeCrashCloseApp", "关闭应用");
         zhHans.put("LuminaPrivateNote", "私密备注");
@@ -980,7 +980,7 @@ zhHans.put("LuminaDigestTitle", "未读摘要");
         zhHant.put("LuminaSecurityFakeCrashCodeNotSet", "未設定");
         zhHant.put("LuminaSecurityFakeCrashCodeDialogTitle", "假當機密碼");
         zhHant.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "不能與你的密碼鎖相同");
-        zhHant.put("LuminaSecurityFakeCrashInfo", "開啟後，在密碼鎖畫面輸入此密碼會顯示偽造的 Android 當機提示並關閉應用程式，而不是解鎖。此密碼與你的 Telegram 密碼以及偽裝計算機鎖互相獨立。");
+        zhHant.put("LuminaSecurityFakeCrashInfo", "開啟後，在密碼鎖畫面輸入此密碼會關閉應用程式而不是解鎖：可直接退出，或先顯示偽造的 Android 當機提示。此密碼與你的 Telegram 密碼以及偽裝計算機鎖互相獨立。");
         zhHant.put("LuminaFakeCrashTitle", "LuminaGram 一直停止運作");
         zhHant.put("LuminaFakeCrashCloseApp", "關閉應用程式");
         zhHant.put("LuminaPrivateNote", "私密備註");
@@ -1570,7 +1570,7 @@ zhHant.put("LuminaDigestTitle", "未讀摘要");
         ar.put("LuminaSecurityFakeCrashCodeNotSet", "غير معيَّن");
         ar.put("LuminaSecurityFakeCrashCodeDialogTitle", "رمز إيهام التعطل");
         ar.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "لا يمكن أن يكون مطابقًا لرمز القفل الخاص بك");
-        ar.put("LuminaSecurityFakeCrashInfo", "عند التفعيل، يؤدي إدخال هذا الرمز في شاشة رمز المرور إلى إظهار تعطّل وهمي لنظام أندرويد وإغلاق التطبيق بدلاً من فتحه. هذا الرمز منفصل عن رمز مرور تيليجرام وعن قفل الآلة الحاسبة الوهمي.");
+        ar.put("LuminaSecurityFakeCrashInfo", "عند التفعيل، يؤدي إدخال هذا الرمز في شاشة رمز المرور إلى إغلاق التطبيق بدلاً من فتحه، إما فورًا أو بعد إظهار تعطّل وهمي لنظام أندرويد. هذا الرمز منفصل عن رمز مرور تيليجرام وعن قفل الآلة الحاسبة الوهمي.");
         ar.put("LuminaFakeCrashTitle", "يستمر تطبيق LuminaGram في التوقف");
         ar.put("LuminaFakeCrashCloseApp", "إغلاق التطبيق");
         ar.put("LuminaPrivateNote", "ملاحظة خاصة");
@@ -2089,7 +2089,7 @@ ar.put("LuminaDigestTitle", "ملخص غير المقروء");
         ru.put("LuminaSecurityFakeCrashCodeNotSet", "Не задан");
         ru.put("LuminaSecurityFakeCrashCodeDialogTitle", "Код ложного сбоя");
         ru.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Код не может совпадать с вашим код-паролем");
-        ru.put("LuminaSecurityFakeCrashInfo", "Когда включено, ввод этого кода на экране блокировки показывает поддельный сбой Android и закрывает приложение вместо разблокировки. Этот код не связан с вашим паролем Telegram и с ложным замком-калькулятором.");
+        ru.put("LuminaSecurityFakeCrashInfo", "Когда включено, ввод этого кода на экране блокировки закрывает приложение вместо разблокировки — сразу или после поддельного сообщения о сбое Android. Этот код не связан с вашим паролем Telegram и с ложным замком-калькулятором.");
         ru.put("LuminaFakeCrashTitle", "Приложение LuminaGram продолжает останавливаться");
         ru.put("LuminaFakeCrashCloseApp", "Закрыть приложение");
         ru.put("LuminaPrivateNote", "Личная заметка");
@@ -2608,7 +2608,7 @@ ru.put("LuminaDigestTitle", "Сводка непрочитанных");
         fa.put("LuminaSecurityFakeCrashCodeNotSet", "تنظیم‌نشده");
         fa.put("LuminaSecurityFakeCrashCodeDialogTitle", "رمز خرابی جعلی");
         fa.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "این کد نمی‌تواند با رمز عبور شما یکسان باشد");
-        fa.put("LuminaSecurityFakeCrashInfo", "وقتی فعال باشد، وارد کردن این رمز در صفحهٔ رمز عبور به‌جای بازکردن برنامه یک خرابی جعلی اندروید نشان می‌دهد و برنامه را می‌بندد. این رمز از رمز عبور تلگرام و از قفل ماشین‌حساب تقلبی جدا است.");
+        fa.put("LuminaSecurityFakeCrashInfo", "وقتی فعال باشد، وارد کردن این رمز در صفحهٔ رمز عبور به‌جای بازکردن برنامه، آن را می‌بندد؛ یا بلافاصله، یا پس از نمایش یک خرابی جعلی اندروید. این رمز از رمز عبور تلگرام و از قفل ماشین‌حساب تقلبی جدا است.");
         fa.put("LuminaFakeCrashTitle", "برنامه LuminaGram مدام متوقف می‌شود");
         fa.put("LuminaFakeCrashCloseApp", "بستن برنامه");
         fa.put("LuminaPrivateNote", "یادداشت خصوصی");
@@ -3127,7 +3127,7 @@ fa.put("LuminaDigestTitle", "خلاصه خوانده‌نشده‌ها");
         tr.put("LuminaSecurityFakeCrashCodeNotSet", "Ayarlanmadı");
         tr.put("LuminaSecurityFakeCrashCodeDialogTitle", "Sahte çökme kodu");
         tr.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Bu kod parola kilidinizle aynı olamaz");
-        tr.put("LuminaSecurityFakeCrashInfo", "Açıkken, bu kodu parola ekranında girmek uygulamanın kilidini açmak yerine sahte bir Android çökmesi gösterir ve uygulamayı kapatır. Bu kod, Telegram parolanızdan ve sahte hesap makinesi kilidinden ayrıdır.");
+        tr.put("LuminaSecurityFakeCrashInfo", "Açıkken, bu kodu parola ekranında girmek uygulamanın kilidini açmak yerine uygulamayı kapatır; hemen ya da sahte bir Android çökme uyarısından sonra. Bu kod, Telegram parolanızdan ve sahte hesap makinesi kilidinden ayrıdır.");
         tr.put("LuminaFakeCrashTitle", "LuminaGram sürekli duruyor");
         tr.put("LuminaFakeCrashCloseApp", "Uygulamayı kapat");
         tr.put("LuminaPrivateNote", "Özel not");
@@ -3646,7 +3646,7 @@ tr.put("LuminaDigestTitle", "Okunmamış özeti");
         es.put("LuminaSecurityFakeCrashCodeNotSet", "Sin establecer");
         es.put("LuminaSecurityFakeCrashCodeDialogTitle", "Código de fallo falso");
         es.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "No puede ser igual que tu código de acceso");
-        es.put("LuminaSecurityFakeCrashInfo", "Cuando está activado, escribir este código en la pantalla de código muestra un fallo falso de Android y cierra la aplicación en lugar de desbloquearla. Este código es independiente de tu código de Telegram y del bloqueo con calculadora señuelo.");
+        es.put("LuminaSecurityFakeCrashInfo", "Cuando está activado, escribir este código en la pantalla de código cierra la aplicación en lugar de desbloquearla, ya sea al instante o tras un aviso falso de fallo de Android. Este código es independiente de tu código de Telegram y del bloqueo con calculadora señuelo.");
         es.put("LuminaFakeCrashTitle", "LuminaGram se detiene constantemente");
         es.put("LuminaFakeCrashCloseApp", "Cerrar la aplicación");
         es.put("LuminaPrivateNote", "Nota privada");
@@ -4165,7 +4165,7 @@ es.put("LuminaDigestTitle", "Resumen de no leídos");
         ptBr.put("LuminaSecurityFakeCrashCodeNotSet", "Não definido");
         ptBr.put("LuminaSecurityFakeCrashCodeDialogTitle", "Código de falha falsa");
         ptBr.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Não pode ser igual à sua senha de bloqueio");
-        ptBr.put("LuminaSecurityFakeCrashInfo", "Quando ativado, digitar este código na tela de senha mostra uma falha falsa do Android e fecha o app em vez de desbloquear. Este código é separado da sua senha do Telegram e do bloqueio com calculadora falsa.");
+        ptBr.put("LuminaSecurityFakeCrashInfo", "Quando ativado, digitar este código na tela de senha fecha o app em vez de desbloquear, na hora ou depois de um aviso falso de falha do Android. Este código é separado da sua senha do Telegram e do bloqueio com calculadora falsa.");
         ptBr.put("LuminaFakeCrashTitle", "O LuminaGram continua parando");
         ptBr.put("LuminaFakeCrashCloseApp", "Fechar app");
         ptBr.put("LuminaPrivateNote", "Nota privada");
@@ -4684,7 +4684,7 @@ ptBr.put("LuminaDigestTitle", "Resumo de não lidas");
         id.put("LuminaSecurityFakeCrashCodeNotSet", "Belum diatur");
         id.put("LuminaSecurityFakeCrashCodeDialogTitle", "Kode crash palsu");
         id.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Tidak boleh sama dengan kode sandi kunci Anda");
-        id.put("LuminaSecurityFakeCrashInfo", "Saat aktif, memasukkan kode ini di layar sandi akan menampilkan crash Android palsu dan menutup aplikasi alih-alih membukanya. Kode ini terpisah dari sandi Telegram Anda dan dari kunci kalkulator umpan.");
+        id.put("LuminaSecurityFakeCrashInfo", "Saat aktif, memasukkan kode ini di layar sandi akan menutup aplikasi alih-alih membukanya, baik langsung maupun setelah peringatan crash Android palsu. Kode ini terpisah dari sandi Telegram Anda dan dari kunci kalkulator umpan.");
         id.put("LuminaFakeCrashTitle", "LuminaGram terus berhenti");
         id.put("LuminaFakeCrashCloseApp", "Tutup aplikasi");
         id.put("LuminaPrivateNote", "Catatan pribadi");
@@ -4879,6 +4879,7 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         loadBatch10();
         loadBatch11();
         loadBatch12();
+        loadBatch13();
     }
 
     /**
@@ -5026,6 +5027,19 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         put3("es", "LuminaLlmDetectModels", "Detectar modelos disponibles", "LuminaLlmPickModel", "Elige un modelo", "LuminaLlmModelsEmpty", "Este servicio no devolvió ningún modelo.", "LuminaLlmModelsNoList", "Este servicio no ofrece una lista de modelos. Escribe el nombre del modelo manualmente.", "LuminaLlmErrModelNotFound", "El modelo «%1$s» no existe en este servicio. Toca «Detectar modelos disponibles» para elegir uno.", "LuminaLlmErrKey", "El servicio rechazó la clave API. Comprueba que la clave sea correcta.", "LuminaLlmErrQuota", "Cuota agotada o demasiadas solicitudes. Inténtalo más tarde o revisa tu plan con el servicio.", "LuminaLlmErrServer", "El servicio tuvo un error temporal (HTTP %1$s). Inténtalo más tarde.", "LuminaLlmErrEndpoint", "No hay nada en esta dirección (HTTP 404). Revisa la URL base; normalmente termina en /v1.", "LuminaLlmErrOther", "El servicio devolvió un error (HTTP %1$s).", "LuminaLlmErrNetwork", "No se puede conectar. Revisa la URL base y tu red.", "LuminaLlmErrRedirect", "El servicio redirigió a otra dirección. Se bloqueó para proteger tu clave API.", "LuminaLlmErrBadUrl", "La URL base no es válida.", "LuminaLlmErrBadResponse", "No se pudo leer la respuesta del servicio. Revisa la URL base y el modelo.");
         put3("pt-br", "LuminaLlmDetectModels", "Detectar modelos disponíveis", "LuminaLlmPickModel", "Escolha um modelo", "LuminaLlmModelsEmpty", "Este serviço não retornou nenhum modelo.", "LuminaLlmModelsNoList", "Este serviço não oferece uma lista de modelos. Digite o nome do modelo manualmente.", "LuminaLlmErrModelNotFound", "O modelo “%1$s” não existe neste serviço. Toque em “Detectar modelos disponíveis” para escolher um.", "LuminaLlmErrKey", "O serviço recusou a chave de API. Verifique se a chave está correta.", "LuminaLlmErrQuota", "Cota esgotada ou solicitações demais. Tente novamente mais tarde ou verifique seu plano no serviço.", "LuminaLlmErrServer", "O serviço teve um erro temporário (HTTP %1$s). Tente novamente mais tarde.", "LuminaLlmErrEndpoint", "Nada encontrado neste endereço (HTTP 404). Verifique a URL base; geralmente ela termina em /v1.", "LuminaLlmErrOther", "O serviço retornou um erro (HTTP %1$s).", "LuminaLlmErrNetwork", "Não foi possível conectar. Verifique a URL base e sua rede.", "LuminaLlmErrRedirect", "O serviço redirecionou para outro endereço. Bloqueado para proteger sua chave de API.", "LuminaLlmErrBadUrl", "A URL base não é válida.", "LuminaLlmErrBadResponse", "Não foi possível ler a resposta do serviço. Verifique a URL base e o modelo.");
         put3("id", "LuminaLlmDetectModels", "Deteksi model yang tersedia", "LuminaLlmPickModel", "Pilih model", "LuminaLlmModelsEmpty", "Layanan ini tidak mengembalikan model apa pun.", "LuminaLlmModelsNoList", "Layanan ini tidak menyediakan daftar model. Ketik nama model secara manual.", "LuminaLlmErrModelNotFound", "Model “%1$s” tidak ada di layanan ini. Ketuk “Deteksi model yang tersedia” untuk memilih salah satu.", "LuminaLlmErrKey", "Layanan menolak kunci API. Periksa apakah kunci sudah benar.", "LuminaLlmErrQuota", "Kuota habis atau terlalu banyak permintaan. Coba lagi nanti atau periksa paket Anda di layanan.", "LuminaLlmErrServer", "Layanan mengalami kesalahan sementara (HTTP %1$s). Coba lagi nanti.", "LuminaLlmErrEndpoint", "Tidak ada apa pun di alamat ini (HTTP 404). Periksa URL dasar; biasanya diakhiri dengan /v1.", "LuminaLlmErrOther", "Layanan mengembalikan kesalahan (HTTP %1$s).", "LuminaLlmErrNetwork", "Tidak dapat terhubung. Periksa URL dasar dan jaringan Anda.", "LuminaLlmErrRedirect", "Layanan mengalihkan ke alamat lain. Diblokir untuk melindungi kunci API Anda.", "LuminaLlmErrBadUrl", "URL dasar tidak valid.", "LuminaLlmErrBadResponse", "Balasan layanan tidak dapat dibaca. Periksa URL dasar dan model.");
+    }
+
+    // Batch 13: fake-crash duress-code mode (dialog / exit) + intro slide 0 Telegram API line.
+    private static void loadBatch13() {
+        put3("zh-hans", "LuminaFakeCrashModeHeader", "输入此密码后", "LuminaFakeCrashModeDialog", "显示假崩溃提示", "LuminaFakeCrashModeDialogInfo", "先显示系统风格的「LuminaGram 一直停止运行」提示，点「关闭应用」后关闭。", "LuminaFakeCrashModeExit", "直接退出", "LuminaFakeCrashModeExitInfo", "不显示任何提示，立即关闭应用。", "LuminaIntroPoweredBy", "基于 Telegram API 打造，Telegram 生态的一员。");
+        put3("zh-hant", "LuminaFakeCrashModeHeader", "輸入此密碼後", "LuminaFakeCrashModeDialog", "顯示假當機提示", "LuminaFakeCrashModeDialogInfo", "先顯示系統風格的「LuminaGram 一直停止運作」提示，點「關閉應用程式」後關閉。", "LuminaFakeCrashModeExit", "直接退出", "LuminaFakeCrashModeExitInfo", "不顯示任何提示，立即關閉應用程式。", "LuminaIntroPoweredBy", "以 Telegram API 打造，Telegram 生態的一員。");
+        put3("ar", "LuminaFakeCrashModeHeader", "عند إدخال هذا الرمز", "LuminaFakeCrashModeDialog", "إظهار تنبيه تعطّل وهمي", "LuminaFakeCrashModeDialogInfo", "يُظهر أولًا تنبيهًا بنمط النظام «يستمر تطبيق LuminaGram في التوقف»، ثم يُغلق التطبيق عند النقر على «إغلاق التطبيق».", "LuminaFakeCrashModeExit", "الخروج فورًا", "LuminaFakeCrashModeExitInfo", "يُغلق التطبيق فورًا دون إظهار أي تنبيه.", "LuminaIntroPoweredBy", "مبني على Telegram API، وجزء من منظومة Telegram.");
+        put3("ru", "LuminaFakeCrashModeHeader", "После ввода этого кода", "LuminaFakeCrashModeDialog", "Показать ложный сбой", "LuminaFakeCrashModeDialogInfo", "Сначала показывает системное окно «Приложение LuminaGram продолжает останавливаться»; приложение закроется после нажатия «Закрыть приложение».", "LuminaFakeCrashModeExit", "Сразу выйти", "LuminaFakeCrashModeExitInfo", "Закрывает приложение сразу, без каких-либо сообщений.", "LuminaIntroPoweredBy", "Работает на Telegram API и входит в экосистему Telegram.");
+        put3("fa", "LuminaFakeCrashModeHeader", "پس از وارد کردن این رمز", "LuminaFakeCrashModeDialog", "نمایش هشدار خرابی جعلی", "LuminaFakeCrashModeDialogInfo", "ابتدا هشداری به سبک سیستم با عنوان «برنامه LuminaGram مدام متوقف می‌شود» نشان می‌دهد و با زدن «بستن برنامه» بسته می‌شود.", "LuminaFakeCrashModeExit", "خروج فوری", "LuminaFakeCrashModeExitInfo", "برنامه را بی‌درنگ و بدون نمایش هیچ هشداری می‌بندد.", "LuminaIntroPoweredBy", "ساخته‌شده با Telegram API و بخشی از اکوسیستم Telegram.");
+        put3("tr", "LuminaFakeCrashModeHeader", "Bu kod girildiğinde", "LuminaFakeCrashModeDialog", "Sahte çökme uyarısı göster", "LuminaFakeCrashModeDialogInfo", "Önce sistem tarzında “LuminaGram sürekli duruyor” uyarısı gösterir; “Uygulamayı kapat”a dokunulunca uygulama kapanır.", "LuminaFakeCrashModeExit", "Hemen çık", "LuminaFakeCrashModeExitInfo", "Hiçbir uyarı göstermeden uygulamayı hemen kapatır.", "LuminaIntroPoweredBy", "Telegram API ile geliştirildi, Telegram ekosisteminin bir parçası.");
+        put3("es", "LuminaFakeCrashModeHeader", "Al escribir este código", "LuminaFakeCrashModeDialog", "Mostrar aviso de fallo falso", "LuminaFakeCrashModeDialogInfo", "Primero muestra un aviso con estilo del sistema «LuminaGram se detiene constantemente»; la app se cierra al tocar «Cerrar la aplicación».", "LuminaFakeCrashModeExit", "Salir de inmediato", "LuminaFakeCrashModeExitInfo", "Cierra la app al instante, sin mostrar ningún aviso.", "LuminaIntroPoweredBy", "Basada en la API de Telegram, parte del ecosistema de Telegram.");
+        put3("pt-br", "LuminaFakeCrashModeHeader", "Ao digitar este código", "LuminaFakeCrashModeDialog", "Mostrar aviso de falha falsa", "LuminaFakeCrashModeDialogInfo", "Primeiro mostra um aviso no estilo do sistema “O LuminaGram continua parando”; o app fecha ao tocar em “Fechar app”.", "LuminaFakeCrashModeExit", "Sair na hora", "LuminaFakeCrashModeExitInfo", "Fecha o app na hora, sem mostrar nenhum aviso.", "LuminaIntroPoweredBy", "Baseado na API do Telegram, parte do ecossistema do Telegram.");
+        put3("id", "LuminaFakeCrashModeHeader", "Saat kode ini dimasukkan", "LuminaFakeCrashModeDialog", "Tampilkan peringatan crash palsu", "LuminaFakeCrashModeDialogInfo", "Pertama menampilkan peringatan bergaya sistem “LuminaGram terus berhenti”; aplikasi tertutup saat “Tutup aplikasi” diketuk.", "LuminaFakeCrashModeExit", "Langsung keluar", "LuminaFakeCrashModeExitInfo", "Menutup aplikasi seketika tanpa menampilkan peringatan apa pun.", "LuminaIntroPoweredBy", "Didukung Telegram API, bagian dari ekosistem Telegram.");
     }
 
     public static String getString(@StringRes int res) {

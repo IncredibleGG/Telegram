@@ -102,12 +102,18 @@ final class GoogleSpeechTranscriber implements LuminaTranscriber {
         HttpURLConnection c = null;
         try {
             cb.onProgress(0f);
-            final byte[] bytes = readFile(audio);
+            byte[] bytes = readFile(audio);
+            // Round videos arrive as an audio-only 16 kHz mono WAV (LuminaVoiceToText strips the
+            // video); send its samples as LINEAR16. Voice notes stay OGG_OPUS / 48000 as before.
+            final boolean wav = audio.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".wav");
+            if (wav && bytes.length > LuminaAudioDecoder.WAV_HEADER_BYTES) {
+                bytes = java.util.Arrays.copyOfRange(bytes, LuminaAudioDecoder.WAV_HEADER_BYTES, bytes.length);
+            }
             final String b64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
             final String body = new JSONObject()
                     .put("config", new JSONObject()
-                            .put("encoding", "OGG_OPUS")
-                            .put("sampleRateHertz", 48000)
+                            .put("encoding", wav ? "LINEAR16" : "OGG_OPUS")
+                            .put("sampleRateHertz", wav ? 16000 : 48000)
                             .put("languageCode", bcp47(langHint)))
                     .put("audio", new JSONObject().put("content", b64))
                     .toString();
