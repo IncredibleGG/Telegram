@@ -256,6 +256,15 @@ public final class LuminaHistoryPaging {
             hasLastLoad = true;
             lastLoadAt = now;
         }
+
+        /**
+         * The chat was reset in place (jump, topic or saved-chat switch): the hidden pages before it
+         * no longer count, so spacing only starts again after 5 new consecutive hidden server pages.
+         */
+        public void reset() {
+            hiddenServerPagesInRow = 0;
+            hasLastLoad = false;
+        }
     }
 
     /**

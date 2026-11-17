@@ -162,6 +162,27 @@ public final class LuminaHistoryPagingCheck {
             fresh.onPageLoaded(true, 50, 0);
         }
         eq(0, fresh.delayBeforeLoad(123), "active but nothing sent yet: no delay");
+        LuminaHistoryPaging.Throttle jumped = new LuminaHistoryPaging.Throttle();
+        jumped.onLoadSent(0);
+        for (int i = 0; i < 5; i++) {
+            jumped.onPageLoaded(true, 50, 0);
+        }
+        jumped.onLoadSent(20_000);
+        check(jumped.isActive(), "before reset: active");
+        jumped.reset();
+        check(!jumped.isActive(), "reset (jump / topic switch) ends the spacing");
+        eq(0, jumped.delayBeforeLoad(20_001), "reset: next request goes out at once");
+        jumped.onPageLoaded(true, 50, 0);
+        eq(0, jumped.delayBeforeLoad(20_002), "reset: one hidden page at the new position is not a run");
+        for (int i = 0; i < 3; i++) {
+            jumped.onPageLoaded(true, 50, 0);
+        }
+        check(!jumped.isActive(), "reset: 4 new hidden pages: not yet");
+        jumped.onPageLoaded(true, 50, 0);
+        check(jumped.isActive(), "reset: 5 new hidden pages: active again");
+        eq(0, jumped.delayBeforeLoad(20_003), "reset: spacing waits for a request sent after the reset");
+        jumped.onLoadSent(30_000);
+        eq(1000, jumped.delayBeforeLoad(30_000), "reset: spaced again after the new run");
     }
 
     private static void retrySlot() {

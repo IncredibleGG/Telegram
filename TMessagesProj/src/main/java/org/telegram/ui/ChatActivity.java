@@ -16641,6 +16641,8 @@ public class ChatActivity extends BaseFragment implements
             cacheEndReached[a] = false;
             forwardEndReached[a] = true;
         }
+        luminaOlderThrottle.reset(); // LuminaGram #22 paging: a reset chat starts a new run of hidden pages
+        luminaNewerThrottle.reset(); // LuminaGram #22 paging
         if (full) {
             first = true;
             firstLoading = true;
@@ -21781,6 +21783,8 @@ public class ChatActivity extends BaseFragment implements
                 }
                 forwardEndReached[a] = true;
             }
+            luminaOlderThrottle.reset(); // LuminaGram #22 paging: a reset chat starts a new run of hidden pages
+            luminaNewerThrottle.reset(); // LuminaGram #22 paging
             clearOnLoadButIsNewTopic = false;
             hideForwardEndReached = false;
             hideActionMode();
