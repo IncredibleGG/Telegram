@@ -11361,6 +11361,19 @@
     <string name="LuminaLinkSafetyWarnPunycode">This address uses encoded (punycode) characters that can imitate a well-known site.</string>
     <string name="LuminaLinkSafetyWarnMixedScript">This address mixes letters from different alphabets, a common look-alike trick.</string>
     <string name="LuminaLinkSafetyWarnShortener">This is a link shortener — the real destination stays hidden until you open it.</string>
+    <string name="LuminaShortLinkResolving">Finding the real address…</string>
+    <string name="LuminaShortLinkResolved">Real address found: %1$s · redirects: %2$d</string>
+    <string name="LuminaShortLinkFailed">Can’t tell the real address before opening (%1$s)</string>
+    <string name="LuminaShortLinkErrTimeout">the short-link service did not answer in time</string>
+    <string name="LuminaShortLinkErrNetwork">network error</string>
+    <string name="LuminaShortLinkErrTooMany">too many redirects</string>
+    <string name="LuminaShortLinkErrScheme">it leads to an address that is not a web page</string>
+    <string name="LuminaShortLinkErrNoTarget">the service did not reveal it</string>
+    <string name="LuminaShortLinkErrHttp">the service answered with error %1$d</string>
+    <string name="LuminaShortLinkFieldLabel">Address to open (you can edit it):</string>
+    <string name="LuminaShortLinkOnlyWeb">Only http:// and https:// addresses can be opened here.</string>
+    <string name="LuminaShortLinkCheckWarnings">Check the warnings below, then tap again to open this address.</string>
+    <string name="LuminaPrivacyLinkSafetyShortLinkInfo">Short links: when the prompt opens, LuminaGram contacts the short-link service once (no cookies, no account data) to show the real address.</string>
     <!-- LuminaGram crypto address clipboard guard (anti-scam, wave11) -->
     <string name="LuminaPrivacyCryptoClipboardGuard">Crypto address paste guard</string>
     <string name="LuminaPrivacyCryptoClipboardGuardInfo">Warn when you paste what looks like a crypto wallet address into the message box. Clipboard-hijacking malware can silently swap a copied address for a scammer\'s — this asks you to double-check before it is inserted. Checks run offline on your device.</string>

@@ -107,7 +107,8 @@ public class LuminaPrivacyActivity extends BaseFragment {
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaPrivacyStripMetadataInfo)));
         items.add(UItem.asSwitch(ID_LINK_SAFETY, LuminaLocale.getString(R.string.LuminaPrivacyLinkSafety))
                 .setChecked(LuminaConfig.getBoolean("linkSafetyCheck", false)));
-        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaPrivacyLinkSafetyInfo)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaPrivacyLinkSafetyInfo)
+                + "\n" + LuminaLocale.getString(R.string.LuminaPrivacyLinkSafetyShortLinkInfo)));
         items.add(UItem.asSwitch(ID_CRYPTO_CLIPBOARD_GUARD, LuminaLocale.getString(R.string.LuminaPrivacyCryptoClipboardGuard))
                 .setChecked(LuminaConfig.getBoolean("cryptoClipboardGuard", false)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaPrivacyCryptoClipboardGuardInfo)));
