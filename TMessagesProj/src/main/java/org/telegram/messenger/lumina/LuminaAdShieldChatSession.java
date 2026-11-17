@@ -58,6 +58,11 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         Collection<MessageObject> getPinnedMessages();
 
         TLRPC.ChatFull getChatFull();
+
+        /** The album {@code groupId} as the chat lays it out (null when unknown). */
+        default MessageObject.GroupedMessages getGroupedMessages(long groupId) {
+            return null;
+        }
     }
 
     /** UI-thread callbacks for the chat UI stage. */
@@ -94,6 +99,8 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     /** A history batch whose decisions come back later than this no longer folds messages already shown. */
     private static final long FRESH_MS = 3000;
     private static final long[] ADMIN_RECHECK_MS = {2000, 5000, 12000, 30000};
+    /** A jump target (reply quote, search, link) still unfolds its segment if its decision folds it this late. */
+    private static final long JUMP_MS = 15000;
     private static final int[] EMPTY = new int[0];
 
     /** Bookkeeping that travels with one engine batch and comes back to the UI thread. */
@@ -134,6 +141,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     private final HashSet<Long> lockedAlbums = new HashSet<Long>();
     private final HashSet<Integer> grace = new HashSet<Integer>();
     private final HashSet<Integer> shownInGrace = new HashSet<Integer>();
+    private final java.util.HashMap<Integer, Long> shownInGraceAlbum = new java.util.HashMap<Integer, Long>();
     private final HashSet<Integer> notAdLocal = new HashSet<Integer>();
     private LuminaAdShield.ChatContext ctx;
     private LuminaAdShieldMapper.Roles roles;
@@ -146,6 +154,8 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     private final int openReadMax;
     private boolean allNewChecked;
     private int[] openingNewIds;
+    private int jumpTarget;
+    private long jumpTargetAt;
 
     // ---- engine thread ----
     private final LinkedHashSet<Integer> tracked = new LinkedHashSet<Integer>();
@@ -256,12 +266,31 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         }
         int st = getDisplayState(mo.getId());
         long album = mo.messageOwner.grouped_id;
-        if (album != 0 && st != DISPLAY_NORMAL && st != DISPLAY_TRIAL_LABEL) {
-            if (lockedAlbums.contains(album)) {
-                return DISPLAY_NORMAL;
+        if (album != 0) {
+            if (st == DISPLAY_NORMAL && active && !decisions.isEmpty() && !decisions.containsKey(mo.getId())) {
+                // A member whose own decision has not come back yet follows its siblings, so an album is
+                // never drawn half folded (the engine decides per unit; this only bridges one publish).
+                MessageObject.GroupedMessages g = host.getGroupedMessages(album);
+                if (g != null && g.messages != null) {
+                    for (int i = 0, n = g.messages.size(); i < n; i++) {
+                        MessageObject o = g.messages.get(i);
+                        if (o != null && o != mo && o.getId() != mo.getId() && o.getId() > 0) {
+                            int other = getDisplayState(o.getId());
+                            if (other != DISPLAY_NORMAL) {
+                                st = other;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
-            if (expandedAlbums.contains(album)) {
-                return DISPLAY_EXPANDED;
+            if (st != DISPLAY_NORMAL && st != DISPLAY_TRIAL_LABEL) {
+                if (lockedAlbums.contains(album)) {
+                    return DISPLAY_NORMAL;
+                }
+                if (expandedAlbums.contains(album)) {
+                    return DISPLAY_EXPANDED;
+                }
             }
         }
         return st;
@@ -282,6 +311,9 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         }
         if (grace.contains(id)) {
             shownInGrace.add(id);
+            if (mo.messageOwner.grouped_id != 0) {
+                shownInGraceAlbum.put(id, mo.messageOwner.grouped_id);
+            }
             return;
         }
         if (locked.add(id) && mo.messageOwner.grouped_id != 0) {
@@ -296,6 +328,14 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
 
     /** 「收合」 in the slim header: fold the segment again. */
     public void collapse(int[] msgIds) {
+        if (msgIds != null && jumpTarget != 0) {
+            for (int id : msgIds) {
+                if (id == jumpTarget) {
+                    jumpTarget = 0;
+                    break;
+                }
+            }
+        }
         setExpanded(msgIds, false);
     }
 
@@ -357,6 +397,31 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             }
         }
         return false;
+    }
+
+    /**
+     * Jump / reply / search / link target {@code msgId}: expands its segment when it is folded now, and keeps
+     * doing so for the next {@link #JUMP_MS} ms in case the target's decision (e.g. of a history batch that
+     * the jump just loaded) only arrives later.
+     */
+    public void expandForJump(List<MessageObject> messages, int msgId) {
+        if (!active || msgId <= 0) {
+            return;
+        }
+        jumpTarget = msgId;
+        jumpTargetAt = SystemClock.elapsedRealtime();
+        expandContaining(messages, msgId);
+    }
+
+    private void checkJumpTarget() {
+        if (jumpTarget == 0) {
+            return;
+        }
+        if (SystemClock.elapsedRealtime() - jumpTargetAt > JUMP_MS) {
+            jumpTarget = 0;
+            return;
+        }
+        expandContaining(host.getLoadedMessages(), jumpTarget);
     }
 
     /**
@@ -446,6 +511,16 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             long now = LuminaAdShieldManager.now(account);
             try {
                 store.markNotAd(anchorMsgId, c, now);
+                // A segment can hold more than one cluster (two campaigns posted back to back): record each
+                // one that still folds, so 「不是廣告」 on the fold row covers everything the row stood for.
+                if (segmentMsgIds != null && c != null) {
+                    LuminaAdShield.Settings s = LuminaAdShieldManager.settings();
+                    for (int id : segmentMsgIds) {
+                        if (id > 0 && id != anchorMsgId && store.decide(id, c, s, now).fold) {
+                            store.markNotAd(id, c, now);
+                        }
+                    }
+                }
             } catch (LuminaAdShieldStore.ForgottenException e) {
                 return;
             }
@@ -557,9 +632,11 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         lockedAlbums.clear();
         grace.clear();
         shownInGrace.clear();
+        shownInGraceAlbum.clear();
         notAdLocal.clear();
         allNewChecked = false;
         openingNewIds = null;
+        jumpTarget = 0;
         version++;
     }
 
@@ -969,13 +1046,18 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
                 continue;       // admin list still loading: keep the allowance (endOpening() settles it)
             }
             grace.remove(id);
+            Long album = shownInGraceAlbum.remove(id);
             if (shownInGrace.remove(id) && (!fresh || d == null || !d.fold)) {
                 locked.add(id); // it was on screen and stays there from now on
+                if (album != null) {
+                    lockedAlbums.add(album);    // the whole album, never half of it
+                }
             }
         }
         version++;
         if (changed != null && changed.length > 0) {
             notifyChanged(changed);
+            checkJumpTarget();
         }
         if (b.newIds != null && b.newIds.length > 0 && openingNewIds == null) {
             openingNewIds = b.newIds;
@@ -1002,8 +1084,12 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         }
         for (Integer id : settle) {
             grace.remove(id);
+            Long album = shownInGraceAlbum.remove(id);
             if (shownInGrace.remove(id)) {
                 locked.add(id);
+                if (album != null) {
+                    lockedAlbums.add(album);
+                }
             }
         }
         if (openingNewIds != null && !allNewChecked) {

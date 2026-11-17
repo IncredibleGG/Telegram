@@ -484,6 +484,7 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenuItem luminaTranslateHeaderItem; // LuminaGram: per-chat translate toggle icon in the chat header
     // LuminaGram 隱藏重複廣告: AdShield state of this group (null = not an eligible group / not MODE_DEFAULT).
     public org.telegram.messenger.lumina.LuminaAdShieldChatSession luminaAdShield;
+    private LuminaAdShieldChatUi luminaAdShieldUi; // fold rows / headers / labels of luminaAdShield (null = not an eligible group)
     private ActionBarMenu.LazyItem audioCallIconItem;
     private boolean searchItemVisible;
     private RadialProgressView progressBar;
@@ -1764,6 +1765,10 @@ public class ChatActivity extends BaseFragment implements
             if (isTryingTextSelection() || hasTextSelection() || inPreviewMode || isInsideContainer) {
                 return false;
             }
+            if (view instanceof LuminaAdShieldChatUi.FoldCell) {
+                // LuminaGram 隱藏重複廣告: 顯示 / 不是廣告 / 在此群關閉
+                return luminaAdShieldUi != null && luminaAdShieldUi.onFoldLongPress((LuminaAdShieldChatUi.FoldCell) view);
+            }
             wasManualScroll = true;
             boolean result = true;
             boolean showMenu = true;
@@ -1867,6 +1872,9 @@ public class ChatActivity extends BaseFragment implements
 
             @Override
             public boolean canSelect(int position) {
+                if (luminaAdShieldUi != null && luminaAdShieldUi.viewTypeAt(position) != 0) {
+                    return false; // LuminaGram 隱藏重複廣告: drag-select never picks up folded messages
+                }
                 int i = position - chatAdapter.messagesStartRow;
                 if (i >= 0 && i < messages.size()) {
                     MessageObject messageObject = messages.get(i);
@@ -1923,6 +1931,12 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             wasManualScroll = true;
+            if (view instanceof LuminaAdShieldChatUi.FoldCell) {
+                if (luminaAdShieldUi != null) {
+                    luminaAdShieldUi.onFoldTap((LuminaAdShieldChatUi.FoldCell) view); // LuminaGram 隱藏重複廣告: show the segment
+                }
+                return;
+            }
             if (view instanceof ChatActionCell) {
                 MessageObject message = ((ChatActionCell) view).getMessageObject();
                 if (message != null && message.messageOwner.action instanceof TLRPC.TL_messageActionWalletTonConnectRequest) {
@@ -3116,7 +3130,19 @@ public class ChatActivity extends BaseFragment implements
                     public TLRPC.ChatFull getChatFull() {
                         return chatInfo;
                     }
+
+                    @Override
+                    public MessageObject.GroupedMessages getGroupedMessages(long groupId) {
+                        return groupedMessagesMap.get(groupId);
+                    }
                 });
+        if (luminaAdShield != null) {
+            // opened at a message (link, notification, search): that message's segment is shown, not folded
+            int luminaJump = highlightMessageId != 0 && highlightMessageId != Integer.MAX_VALUE ? highlightMessageId : arguments.getInt("message_id", 0);
+            if (luminaJump > 0) {
+                luminaAdShield.expandForJump(messages, luminaJump);
+            }
+        }
 
         if (forceHistoryEmpty) {
             endReached[0] = endReached[1] = true;
@@ -5832,6 +5858,9 @@ public class ChatActivity extends BaseFragment implements
             }
 
             protected void drawChatBackgroundElements(Canvas canvas, RectF positionF) {
+                if (luminaAdShieldUi != null) {
+                    luminaAdShieldUi.draw(canvas, this, positionF == null); // LuminaGram 隱藏重複廣告: slim headers, trial labels
+                }
                 final int count = getChildCount();
                 MessageObject.GroupedMessages lastDrawnGroup = null;
 
@@ -6743,6 +6772,9 @@ public class ChatActivity extends BaseFragment implements
 
             @Override
             protected boolean hasSiblingChild(int position) {
+                if (luminaAdShieldUi != null && luminaAdShieldUi.viewTypeAt(position) != 0) {
+                    return false; // LuminaGram 隱藏重複廣告: fold rows are never album grid cells
+                }
                 if (position >= chatAdapter.messagesStartRow && position < chatAdapter.messagesEndRow) {
                     int index = position - chatAdapter.messagesStartRow;
                     if (index >= 0 && index < chatAdapter.getMessages().size()) {
@@ -6867,6 +6899,9 @@ public class ChatActivity extends BaseFragment implements
         chatLayoutManager.setSpanSizeLookup(new GridLayoutManagerFixed.SpanSizeLookup() {
             @Override
             public int getSpanSize(int position) {
+                if (luminaAdShieldUi != null && luminaAdShieldUi.viewTypeAt(position) != 0) {
+                    return 1000; // LuminaGram 隱藏重複廣告: a folded album is one full-width row, never a grid
+                }
                 if (position >= chatAdapter.messagesStartRow && position < chatAdapter.messagesEndRow) {
                     int idx = position - chatAdapter.messagesStartRow;
                     if (idx >= 0 && idx < chatAdapter.getMessages().size()) {
@@ -6914,6 +6949,14 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         });
+        // LuminaGram 隱藏重複廣告: fold rows, slim headers and trial labels of this group (inert while the feature is off here)
+        if (luminaAdShield != null) {
+            luminaAdShieldUi = new LuminaAdShieldChatUi(luminaAdShieldUiHost());
+            luminaAdShield.setListener(luminaAdShieldUi);
+            luminaAdShieldUi.attachIfActive();
+        } else {
+            luminaAdShieldUi = null;
+        }
         chatListView.setOnItemLongClickListener(onItemLongClickListener);
         chatListView.setOnItemClickListener(onItemClickListener);
         chatListView.setOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -13067,6 +13110,63 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    // LuminaGram 隱藏重複廣告: what the fold UI needs from this fragment.
+    private LuminaAdShieldChatUi.Host luminaAdShieldUiHost() {
+        return new LuminaAdShieldChatUi.Host() {
+            @Override
+            public org.telegram.messenger.lumina.LuminaAdShieldChatSession session() {
+                return luminaAdShield;
+            }
+
+            @Override
+            public ChatActivityAdapter adapter() {
+                return chatAdapter;
+            }
+
+            @Override
+            public RecyclerView listView() {
+                return chatListView;
+            }
+
+            @Override
+            public boolean isReversed() {
+                return reversed;
+            }
+
+            @Override
+            public Theme.ResourcesProvider resourcesProvider() {
+                return themeDelegate;
+            }
+
+            @Override
+            public BaseFragment fragment() {
+                return ChatActivity.this;
+            }
+
+            @Override
+            public float serviceTop(View child) {
+                return getServiceTop(child);
+            }
+
+            @Override
+            public int serviceHeight(View child) {
+                return getServiceHeight(child);
+            }
+
+            @Override
+            public boolean showAllNewFoldedHint() {
+                if (fragmentView == null || getParentActivity() == null || luminaAdShield == null) {
+                    return true;
+                }
+                if (!openAnimationEnded || paused) {
+                    return false;
+                }
+                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.chats_infotip, LuminaLocale.getString(R.string.LuminaAdShieldAllNewFolded)).show();
+                return true;
+            }
+        };
+    }
+
     public MessageObject.GroupedMessages getValidGroupedMessage(MessageObject message) {
         MessageObject.GroupedMessages groupedMessages = null;
         if (message.getGroupId() != 0) {
@@ -16835,6 +16935,36 @@ public class ChatActivity extends BaseFragment implements
 
             final float visibleTop = getServiceTop(view);
             final int visibleBackgroundHeight = getServiceHeight(view);
+            if (LuminaAdShieldChatUi.isOwnRow(view)) {
+                // LuminaGram 隱藏重複廣告: a visible fold row stands for its whole segment (read state, pinned bar);
+                // zero-height members are skipped.
+                if (view instanceof LuminaAdShieldChatUi.FoldCell) {
+                    final LuminaAdShieldChatUi.FoldCell foldCell = (LuminaAdShieldChatUi.FoldCell) view;
+                    foldCell.setVisiblePart(visibleTop, visibleBackgroundHeight);
+                    if (chatMode != MODE_SCHEDULED) {
+                        for (MessageObject member : foldCell.getMembers()) {
+                            final int id = member.getId();
+                            if (member.getDialogId() == dialog_id && id > maxVisibleId) {
+                                maxVisibleId = id;
+                                maxVisibleMessageObject = member;
+                            }
+                            if (
+                                !isThreadChat() && visibleToBeRead && (!member.isOut() && member.isUnread() || member.messageOwner.from_scheduled && id > currentReadMaxId) ||
+                                 (isThreadChat() || ChatObject.isMonoForum(currentChat)) && id > 0 && id > currentReadMaxId && id > replyMaxReadId
+                            ) {
+                                if (id > 0) {
+                                    maxPositiveUnreadId = Math.max(maxPositiveUnreadId, id);
+                                }
+                                if (id < 0 && !isThreadChat()) {
+                                    maxNegativeUnreadId = Math.min(maxNegativeUnreadId, id);
+                                }
+                                maxUnreadDate = Math.max(maxUnreadDate, member.messageOwner.date);
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             boolean hasTopicSeparator = false;
 
             if (messageCell != null) {
@@ -17709,6 +17839,11 @@ public class ChatActivity extends BaseFragment implements
         forceScrollToFirst = forcePinnedMessageId > 0;
         wasManualScroll = true;
         MessageObject object = chatAdapter.isFiltered ? (filteredMessagesDict != null ? filteredMessagesDict.get(id) : null) : messagesDict[loadIndex].get(id);
+        if (luminaAdShield != null && !chatAdapter.isFiltered && (select || id != createUnreadMessageAfterId)) {
+            // LuminaGram 隱藏重複廣告: jumping to a folded message (reply quote, search, pinned bar, mention, date)
+            // shows its segment; the page-down jump to the first unread message leaves new ads folded.
+            luminaAdShield.expandForJump(messages, id);
+        }
         boolean query = false;
         int scrollDirection = RecyclerAnimationScrollHelper.SCROLL_DIRECTION_UNSET;
         int scrollFromIndex = 0;
@@ -38974,6 +39109,8 @@ public class ChatActivity extends BaseFragment implements
                 ChatMessageUnsupportedCell cell = new ChatMessageUnsupportedCell(mContext, themeDelegate);
                 cell.setDelegate(getChatMessageCellDelegate());
                 view = cell;
+            } else if (viewType == LuminaAdShieldChatUi.VIEW_TYPE_FOLD || viewType == LuminaAdShieldChatUi.VIEW_TYPE_HIDDEN) {
+                view = LuminaAdShieldChatUi.createRow(mContext, viewType, themeDelegate); // LuminaGram 隱藏重複廣告
             }
             view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
             return new RecyclerListView.Holder(view);
@@ -39053,6 +39190,10 @@ public class ChatActivity extends BaseFragment implements
                 MessageObject message = messages.get(position - messagesStartRow);
                 View view = holder.itemView;
 
+                // LuminaGram 隱藏重複廣告: fold row / zero-height member of a fold segment
+                if (luminaAdShieldUi != null && luminaAdShieldUi.bindRow(view, messages, position - messagesStartRow)) {
+                    return;
+                }
                 if (view instanceof ChatMessageCell) {
                     final ChatMessageCell messageCell = (ChatMessageCell) view;
                     MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
@@ -39544,6 +39685,9 @@ public class ChatActivity extends BaseFragment implements
                         messageCell.setVisibility(View.VISIBLE);
                     }
                     showBotMessageHint(messageCell, false);
+                    if (luminaAdShieldUi != null && !isFiltered) {
+                        luminaAdShieldUi.onMessageBound(message); // LuminaGram 隱藏重複廣告: what was shown never vanishes
+                    }
                 } else if (view instanceof ChatActionCell) {
                     final boolean firstInChat;
                     if (message != null && message.isDateObject) {
@@ -39604,6 +39748,13 @@ public class ChatActivity extends BaseFragment implements
                     messages = filteredMessages;
                 } else {
                     messages = ChatActivity.this.messages;
+                }
+                if (luminaAdShieldUi != null && !isFiltered) {
+                    // LuminaGram 隱藏重複廣告: the top row of a fold segment / a zero-height member
+                    final int luminaType = luminaAdShieldUi.viewType(messages, position - messagesStartRow);
+                    if (luminaType != 0) {
+                        return luminaType;
+                    }
                 }
                 return messages.get(position - messagesStartRow).contentType;
             } else if (position == botInfoRow) {
