@@ -239,9 +239,9 @@ final class LuminaAdShieldMapper {
      * member. {@code out} covers my own messages sent as a channel or as an anonymous admin. Channel senders
      * (send-as, auto-forwards) carry the channel id, anonymous admins the group id.
      *
-     * <p>An admin bot stays an admin, as in v2 on Android: with the per-group option off its posts keep endorsing
-     * and protecting members' copies exactly as before (owner rule: everything else keeps working as before).
-     * SPEC §9.1 / R3-19 (v3) ranks bot above the admin roles instead; that change waits for the owner's decision.
+     * <p>An admin bot stays an admin (owner decision 2026-11-18, SPEC §9.1): real admin rights rank above bot, and a
+     * custom rank alone never counts. As in v2, with the per-group option off its posts keep endorsing and protecting
+     * members' copies exactly as before. Only a bot without admin rights is sent as role=bot ({@code exemptBots}, R3-19).
      */
     private static LuminaAdShield.Sender sender(int account, MessagesController mc, TLRPC.Chat chat, Roles roles,
                                                 TLRPC.Message m, long selfId) {
