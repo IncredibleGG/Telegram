@@ -12021,9 +12021,9 @@
     <string name="LuminaMediaVideoHeader">Video</string>
     <string name="LuminaMediaSwipeVideoPip">Swipe down for picture-in-picture</string>
     <string name="LuminaMediaSwipeVideoPipInfo">While a video plays full screen, swipe it downward to shrink it into a floating picture-in-picture window.</string>
-    <!-- LuminaGram feature #21: large-transfer boost (upload/download part size) -->
-    <string name="LuminaMediaTransferHeader">Large file transfers</string>
-    <string name="LuminaMediaTransferBoost">Speed up large transfers (experimental)</string>
+    <!-- LuminaGram feature #21: transfer boost (small-file upload parts, downloads outside the upstream byte budget) -->
+    <string name="LuminaMediaTransferHeader">File transfers</string>
+    <string name="LuminaMediaTransferBoost">Speed up file transfers (experimental)</string>
     <string name="LuminaMediaTransferBoostInfo">Uses bigger parts only where Telegram itself does not already: 512 KB parts for uploads of files up to 10 MB, and 1 MB parts for downloads outside Telegram\'s own download budget (for example secret-chat files). Bigger uploads and most downloads already use Telegram\'s newer, faster pipeline and are left untouched. Experimental — turn it off if transfers misbehave on your connection. Off matches Telegram exactly.</string>
     <!-- LuminaGram Batch 8: app icon picker (#24) -->
     <string name="LuminaAppIconTitle">App icon</string>

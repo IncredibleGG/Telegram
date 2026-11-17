@@ -416,7 +416,8 @@ public class ActionBarMenuItem extends FrameLayout {
             View child = popupLayout.getItemAt(a);
             Object tag = child.getTag();
             // the items of the menu, and rows with an action of their own (a nested page)
-            if (tag instanceof Integer ? (Integer) tag >= 100 : !child.hasOnClickListeners()) {
+            // LuminaGram: Lumina ids live in a reserved range far above 100 (LuminaMenuIds), keep them gesture-selectable
+            if (tag instanceof Integer ? ((Integer) tag >= 100 && !org.telegram.messenger.LuminaMenuIds.isLumina((Integer) tag)) : !child.hasOnClickListeners()) {
                 continue;
             }
             // the items are in a scrolled list inside the popup: relative to their own parent

@@ -27,6 +27,15 @@ public final class LuminaMenuIds {
     /** 0x4C47 = "LG". */
     public static final int BASE = 0x4C470000;
 
+    /**
+     * Whether {@code id} is in the Lumina reserved range. ActionBarMenuItem only lets the long-press / drag-down
+     * gesture pick sub-items whose id is below 100 (upstream convention); it also accepts this range so that our
+     * sub-items (go to first message, clear all cache, save frame, ...) stay gesture-selectable like before.
+     */
+    public static boolean isLumina(int id) {
+        return (id & 0xFFFF0000) == BASE;
+    }
+
     // ChatActivity header (actionBar) menu
     public static final int CHAT_GO_TO_FIRST_MESSAGE = BASE + 1;
     public static final int CHAT_TRANSLATE_TOGGLE = BASE + 2;

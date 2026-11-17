@@ -130,7 +130,7 @@ public class LuminaMediaActivity extends BaseFragment {
                 .setChecked(LuminaConfig.swipeVideoToPip));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMediaSwipeVideoPipInfo)));
 
-        // --- Large file transfers (feature #21) ---
+        // --- File transfers (feature #21: small-file upload parts + downloads outside upstream's byte budget) ---
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMediaTransferHeader)));
         items.add(UItem.asSwitch(ID_TRANSFER_BOOST, LuminaLocale.getString(R.string.LuminaMediaTransferBoost))
                 .setChecked(LuminaConfig.transferBoost));
