@@ -11630,16 +11630,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     luminaChatCreationDate = currentChat.date;
                 }
             }
-            // LuminaGram: admin-only "Recent Actions" (event log) row.
-            if (currentChat != null && ChatObject.isChannel(currentChat) && (currentChat.creator || ChatObject.hasAdminRights(currentChat))) {
-                recentActionsRow = rowCount++;
-            }
             if (LuminaConfig.getBoolean("showDcId", false) && getProfileDcId() > 0) {
                 dcIdRow = rowCount++;
             }
             // LuminaGram (wave30): when the current profile photo was uploaded (default off).
             if (LuminaConfig.getBoolean("showPhotoUploadDate", false) && getProfilePhotoDateString() != null) {
                 photoDateRow = rowCount++;
+            }
+            // LuminaGram: admin-only "Recent Actions" (event log) row. Kept after all the
+            // Lumina value rows (ID / created / DC / photo date) so the card reads
+            // value rows first, then the action row (#13 card order).
+            if (currentChat != null && ChatObject.isChannel(currentChat) && (currentChat.creator || ChatObject.hasAdminRights(currentChat))) {
+                recentActionsRow = rowCount++;
             }
             if (actionsView == null) {
                 if (infoHeaderRow != -1) {

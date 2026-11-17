@@ -52,6 +52,11 @@ public class TextDetailCell extends FrameLayout implements Theme.Colorable {
     private boolean hasLeftIcon;
     private final int iconTextBaseMargin;
     private final int iconValueBaseMargin;
+    // LuminaGram #13: same geometry as an upstream TextCell icon row (non-compact), so Lumina
+    // info rows line up with the TextCell rows in the same card: icon at 21dp
+    // (TextCell.getDefaultImageLeft) and text at 71dp (TextCell.getOffsetFromImage(false)).
+    private static final int LEFT_ICON_START_DP = 21;
+    private static final int LEFT_ICON_TEXT_START_DP = 71;
     private boolean needDivider;
     private boolean contentDescriptionValueFirst;
     private boolean multiline;
@@ -182,7 +187,7 @@ public class TextDetailCell extends FrameLayout implements Theme.Colorable {
         leftImageView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         leftImageView.setScaleType(ImageView.ScaleType.CENTER);
         leftImageView.setVisibility(GONE);
-        addView(leftImageView, LayoutHelper.createFrameRelatively(24, 24, Gravity.START | Gravity.CENTER_VERTICAL, 18, 0, 0, 0));
+        addView(leftImageView, LayoutHelper.createFrameRelatively(24, 24, Gravity.START | Gravity.CENTER_VERTICAL, LEFT_ICON_START_DP, 0, 0, 0));
     }
 
     protected int processColor(int color) {
@@ -292,7 +297,8 @@ public class TextDetailCell extends FrameLayout implements Theme.Colorable {
     }
 
     private void applyLeftIconMargins(boolean on) {
-        int extra = on ? dp(40) : 0;
+        // text glyphs start at base margin (+6dp padding on textView) -> both land on 71dp
+        int extra = on ? Math.max(0, dp(LEFT_ICON_TEXT_START_DP) - iconValueBaseMargin) : 0;
         MarginLayoutParams tlp = (MarginLayoutParams) textView.getLayoutParams();
         MarginLayoutParams vlp = (MarginLayoutParams) valueTextView.getLayoutParams();
         if (LocaleController.isRTL) {
