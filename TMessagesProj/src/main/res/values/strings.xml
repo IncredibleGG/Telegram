@@ -11985,7 +11985,7 @@
     <string name="LuminaAdShieldExemptContacts">Contacts</string>
     <string name="LuminaAdShieldExemptBots">Bots</string>
     <string name="LuminaAdShieldExemptReplies">Messages that reply to or mention me</string>
-    <string name="LuminaAdShieldExemptInfo">Messages from you and from admins are never folded.</string>
+    <string name="LuminaAdShieldExemptInfo">Your own messages are never folded. Messages from admins and the group\'s channel aren\'t folded unless “Also fold admins and the group\'s channel” is turned on for that group.</string>
     <string name="LuminaAdShieldTrial">Trial run</string>
     <string name="LuminaAdShieldTrialInfo">Only labels messages as “Possible repeated ad” and folds nothing</string>
     <string name="LuminaAdShieldClearData">Clear local data</string>

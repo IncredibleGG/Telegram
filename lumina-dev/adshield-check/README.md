@@ -24,6 +24,8 @@ What it runs, all on the engine's own 16 MB-stack thread (`LuminaAdShieldThread`
 | account | ForgetAll (files gone, every write refused, delayed flush cannot recreate files), per-userId dirs, reload, purgeOrphans after a key change, logout vs panic wipe, total cap LRU by mtime, no files while off/ineligible, 8-chat memory cap, FileOps seam |
 | robustness | deep-recursion input on a 64 KB stack never escapes `observe`; same input processed on the engine thread |
 | v3-rules | `ref/test_adshield.py` TestV3 / TestV3Fixes: VAR key kinds and ratios, VAR / BLOCK matching (same sender only), block rules, 72-key cap round trip, record authors and the v2 header discard, privileged definition, CR LF, author of a privileged forward of the linked channel and PRIV_STRONG, tolerant overlap never impersonation, `foldPrivilegedRepeats` only affects PRIV messages (every scenario) |
+| owner case (synthetic) | the owner's price-list case (synthetic text) vs `tools/usercase.py` on the reference: option off = all endorsed, option on folds #2..#4 at standard / aggressive |
+| view cache (clock) | the cached View is reused only while now is in [built now, first row / record expiry]; at every probe around the expiries a reused View decides exactly like a fresh one |
 | perf / perf v3 | `observe` x3000 and `decide` timings on a 3000-row chat, short one-liners and multi-line price lists (~32 keys per row) |
 
 `vectors/` and `corpus/` are verbatim copies of `adshield/vectors` and `adshield/corpus`

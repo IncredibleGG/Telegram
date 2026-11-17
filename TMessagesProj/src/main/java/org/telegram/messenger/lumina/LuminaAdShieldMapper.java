@@ -235,10 +235,13 @@ final class LuminaAdShieldMapper {
     }
 
     /**
-     * SPEC §9.1 role, first match in the fixed order self > bot > creator / admin / anon_admin / channel >
-     * contact > member (v3: the same order on every platform). {@code out} covers my own messages sent as a
-     * channel or as an anonymous admin; an admin bot is a bot. Channel senders (send-as, auto-forwards) carry
-     * the channel id, anonymous admins the group id.
+     * SPEC §9.1 role, first match in the order self > creator / admin / anon_admin / channel > bot > contact >
+     * member. {@code out} covers my own messages sent as a channel or as an anonymous admin. Channel senders
+     * (send-as, auto-forwards) carry the channel id, anonymous admins the group id.
+     *
+     * <p>An admin bot stays an admin, as in v2 on Android: with the per-group option off its posts keep endorsing
+     * and protecting members' copies exactly as before (owner rule: everything else keeps working as before).
+     * SPEC §9.1 / R3-19 (v3) ranks bot above the admin roles instead; that change waits for the owner's decision.
      */
     private static LuminaAdShield.Sender sender(int account, MessagesController mc, TLRPC.Chat chat, Roles roles,
                                                 TLRPC.Message m, long selfId) {
@@ -252,10 +255,10 @@ final class LuminaAdShieldMapper {
             String adminRole = roles.roleByUser.get(uid);
             if (uid == selfId || m.out) {
                 s.role = LuminaAdShield.ROLE_SELF;
-            } else if (u != null && u.bot) {
-                s.role = LuminaAdShield.ROLE_BOT;   // also when the bot is an admin
             } else if (adminRole != null) {
-                s.role = adminRole;     // real admins / creator only; a custom rank alone never counts
+                s.role = adminRole;     // real admins / creator only (also admin bots); a custom rank alone never counts
+            } else if (u != null && u.bot) {
+                s.role = LuminaAdShield.ROLE_BOT;
             } else if (u != null && (u.contact || ContactsController.getInstance(account).contactsDict.get(uid) != null)) {
                 s.role = LuminaAdShield.ROLE_CONTACT;
             } else {

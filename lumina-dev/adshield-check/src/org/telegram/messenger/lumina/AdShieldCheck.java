@@ -290,6 +290,7 @@ public final class AdShieldCheck {
         robustness();
         v3Rules();
         userCase();
+        viewCache();
         perf();
         perfV3();
 
@@ -2264,6 +2265,103 @@ public final class AdShieldCheck {
         cur.note = String.format("%.1f keys/row, blob %d KB; observe x3000 %.0f ms; cold decide (view rebuild) avg %.1f ms / max %.1f ms; "
                         + "warm decide avg %.3f ms / max %.2f ms (%d folded)",
                 keys / (double) n, blob / 1024, obsMs, coldSum / coldRuns, coldMax, passMs / n, warmMax, folded);
+    }
+
+    // ------------------------------------------------------------------ View reuse across now (validUntil)
+    static String dstr(Decision d) {
+        return d.state + "/" + d.fold + "/" + d.cls + "/" + d.rule + "/" + d.occurrence + "/" + d.groupSize + "/" + d.replyToMe;
+    }
+
+    /** a = decide(id, t) on a View built earlier at t0 (reused when still valid), b = decide(id, t) on a fresh View. */
+    static void sameAsFresh(LuminaAdShieldStore chat, ChatContext c, Settings st, int maxId, long t0, long t, String what) {
+        for (int id = 1; id <= maxId; id++) {
+            chat.mutations++;
+            chat.view(c, t0);
+            String a = dstr(chat.decide(id, c, st, t));
+            chat.mutations++;
+            String b = dstr(chat.decide(id, c, st, t));
+            eq(b, a, what + " #" + id);
+        }
+    }
+
+    static void viewCache() {
+        section("view cache (clock)");
+        final long day = 86400L;
+        final long chatId = -100779L;
+        ChatContext c = ChatContext.builder(chatId).type("supergroup").username("cache_grp").adminsKnown(true)
+                .memberHandles(Collections.singletonList("cache_admin")).build();
+        String ad = "【會員卡 特價】\n\n年卡特價 300 元，現貨秒發\n\n下單請私聊 @cache_vendor 或看 t.me/+cachepromo";
+        Settings st = new Settings(LuminaAdShield.SENS_STANDARD);
+
+        // rows only: the View lives until the first row's max(date, seen) + EVICT_AFTER
+        caseBegin();
+        LuminaAdShieldStore chat = new LuminaAdShieldStore(chatId, TEST_KEY);
+        long base = 1_795_000_000L;
+        for (int i = 1; i <= 4; i++) {
+            long d = base + i * 3600L;
+            chat.observe(simple(i, d, 6000 + i, "cache_user_" + i, "member", ad), c, d);
+        }
+        long now = base + 5 * 3600L;
+        LuminaAdShieldStore.View v0 = chat.view(c, now);
+        long firstExpiry = base + 3600L + LuminaAdShield.EVICT_AFTER;
+        eq(firstExpiry, v0.validUntil, "validUntil = first row expiry");
+        check(chat.view(c, now + 60) == v0, "same View a minute later");
+        check(chat.view(c, firstExpiry) == v0, "same View at validUntil");
+        LuminaAdShieldStore.View v1 = chat.view(c, firstExpiry + 1);
+        check(v1 != v0, "rebuilt once the first row expires");
+        eq(v0.units.size() - 1, v1.units.size(), "the expired row left the View");
+        check(chat.view(c, now) != v1, "a clock going backwards rebuilds");
+        long rowsAfter = chat.mutations;
+        chat.decide(1, c, st, now + day);
+        eq(rowsAfter, chat.mutations, "decide never mutates the store");
+        caseEnd();
+
+        caseBegin();
+        long[] times = {now, now + day, firstExpiry - 1, firstExpiry, firstExpiry + 1, firstExpiry + 3600L,
+                firstExpiry + 3601L, firstExpiry + 4 * 3600L, firstExpiry + 4 * 3600L + 1};
+        for (long t : times) {
+            sameAsFresh(chat, c, st, 4, now, t, "rows: built at now, decided at " + (t - now));
+        }
+        StringBuilder states = new StringBuilder();
+        for (int id = 1; id <= 4; id++) {
+            states.append(id > 1 ? "," : "").append(chat.decide(id, c, st, now).state);
+        }
+        eq("original,fold,fold,fold", states.toString(), "the probes cover folds (members' repeats at now)");
+        caseEnd();
+
+        // a record that expires before every row: validUntil = stamp + RECORD_TTL
+        caseBegin();
+        LuminaAdShieldStore chat2 = new LuminaAdShieldStore(chatId, TEST_KEY);
+        long t0 = base;
+        chat2.observe(simple(1, t0, 555, "cache_admin", "admin", ad), c, t0);
+        long late = t0 + 85 * day;
+        for (int i = 2; i <= 5; i++) {
+            long d = late + i * 3600L;
+            chat2.observe(simple(i, d, 6000 + i, "cache_user_" + i, "member", ad), c, d);
+        }
+        long now2 = late + 6 * 3600L;
+        LuminaAdShieldStore.View w0 = chat2.view(c, now2);
+        long recExpiry = t0 + LuminaAdShield.RECORD_TTL;
+        eq(1, w0.liveRecords.size(), "the admin post's endorsement record is live");
+        eq(recExpiry, w0.validUntil, "validUntil = record expiry (before every row)");
+        check(chat2.view(c, recExpiry) == w0, "same View at the record's last live second");
+        LuminaAdShieldStore.View w1 = chat2.view(c, recExpiry + 1);
+        check(w1 != w0, "rebuilt once the record expires");
+        eq(0, w1.liveRecords.size(), "the expired record left the View");
+        for (long t : new long[]{now2, recExpiry - 1, recExpiry, recExpiry + 1, recExpiry + day}) {
+            sameAsFresh(chat2, c, st, 5, now2, t, "record: built at now, decided at " + (t - now2));
+        }
+        StringBuilder states2 = new StringBuilder();
+        for (long t : new long[]{now2, recExpiry + 1}) {
+            states2.append(states2.length() > 0 ? "|" : "");
+            for (int id = 2; id <= 5; id++) {
+                states2.append(id > 2 ? "," : "").append(chat2.decide(id, c, st, t).state);
+            }
+        }
+        eq("endorsed,endorsed,endorsed,endorsed|original,fold,fold,fold", states2.toString(),
+                "the record's expiry changes the decisions (#2..#5 at now | one second after it expires)");
+        cur.note = "View reused only while now is in [built now, first row / record expiry]; reused = fresh at every probe";
+        caseEnd();
     }
 
     // ------------------------------------------------------------------ owner's case (synthetic copy), vs the reference

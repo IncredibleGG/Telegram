@@ -82,7 +82,8 @@ public final class LuminaAdShieldChatMenu {
         layout.addView(privilegedRow(context, rp, session),
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
         builder.setView(layout);
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        // The switch below applies at once, so the only button closes (a "Cancel" would read as reverting it).
+        builder.setNegativeButton(LocaleController.getString(R.string.Close), null);
         fragment.showDialog(builder.create());
 
         session.requestFoldedCount(n -> {

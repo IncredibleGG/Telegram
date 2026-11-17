@@ -36,8 +36,10 @@ import java.util.TreeMap;
  *
  * <p><b>Index (SPEC §6.6):</b> the units, their "(kind, hash) -> units" index and the record index form a
  * {@link View} over primitive arrays ({@link KeyIndex}). It is built once per store change (an observe /
- * delete / notAd batch, expiry) and then shared by every decide of the batch with the same {@code now} and
- * member handles; decide itself never rebuilds it and only visits the units that share a key with m.
+ * delete / notAd batch, expiry) and then shared by every decide with the same member handles until the next
+ * change or until the clock passes the first row / record expiry it contains ({@link View#validUntil}); decide
+ * itself never rebuilds it and only visits the units that share a key with m. Known deviation from SPEC §6.6
+ * ("update the index incrementally"): a store change rebuilds the whole View instead of patching postings.
  */
 public final class LuminaAdShieldStore {
 
@@ -139,10 +141,15 @@ public final class LuminaAdShieldStore {
         }
     }
 
-    /** Cached unit view; valid for one (mutation counter, now, member-handle set). */
+    /**
+     * Cached unit view; valid for one (mutation counter, member-handle set) and every now in
+     * [{@link #now}, {@link #validUntil}]: buildView uses now only for the row and record TTL filters, and inside
+     * that range no included row or record expires and no excluded one comes back.
+     */
     static final class View {
         long mutations;
-        long now;
+        long now;               // the now it was built for (a clock going backwards rebuilds)
+        long validUntil;        // last now at which every included row and record is still live
         long[] memberHashes;
         ArrayList<Unit> units = new ArrayList<Unit>();
         Unit[] unitArr;
@@ -705,7 +712,8 @@ public final class LuminaAdShieldStore {
     View view(LuminaAdShield.ChatContext ctx, long now) {
         long[] mh = ctx.memberHashes(key);
         View v = cache;
-        if (v != null && v.mutations == mutations && v.now == now && Arrays.equals(v.memberHashes, mh)) {
+        if (v != null && v.mutations == mutations && now >= v.now && now <= v.validUntil
+                && Arrays.equals(v.memberHashes, mh)) {
             return v;
         }
         v = buildView(ctx.memberHashSet(key), mh, now);
@@ -735,12 +743,15 @@ public final class LuminaAdShieldStore {
         v.mutations = mutations;
         v.now = now;
         v.memberHashes = mh;
+        long validUntil = Long.MAX_VALUE;
         ArrayList<ArrayList<Item>> groups = new ArrayList<ArrayList<Item>>();
         HashMap<Long, ArrayList<Item>> albumGroups = new HashMap<Long, ArrayList<Item>>();
         for (Row r : rows.values()) {
-            if (now - Math.max(r.date, r.seen) > LuminaAdShield.EVICT_AFTER) {
+            long lastLive = Math.max(r.date, r.seen) + LuminaAdShield.EVICT_AFTER;
+            if (now > lastLive) {               // == now - max(date, seen) > EVICT_AFTER
                 continue;
             }
+            validUntil = Math.min(validUntil, lastLive);
             LuminaAdShield.KnownFn known = NONE_KNOWN;
             if (r.pending.length > 0) {
                 final long d = r.date;
@@ -856,10 +867,13 @@ public final class LuminaAdShieldStore {
         v.blockGen = new int[n];
         v.blockCnt = new int[n];
         for (Record r : records) {
-            if (now - r.stamp <= LuminaAdShield.RECORD_TTL) {
+            long lastLive = r.stamp + LuminaAdShield.RECORD_TTL;
+            if (now <= lastLive) {              // == now - stamp <= RECORD_TTL
                 v.liveRecords.add(r);
+                validUntil = Math.min(validUntil, lastLive);
             }
         }
+        v.validUntil = validUntil;
         for (int ri = 0; ri < v.liveRecords.size(); ri++) {
             for (LuminaAdShield.Key k : distinctKeys(v.liveRecords.get(ri).keys)) {
                 v.recordIndex.add(k.kind, k.hash, ri);
