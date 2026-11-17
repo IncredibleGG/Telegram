@@ -30,7 +30,10 @@ import java.util.regex.Pattern;
  *   <li>HEAD first; GET only when HEAD gave no Location, reading at most {@link #MAX_BODY_BYTES} of
  *       the body to find a {@code <meta http-equiv="refresh" content="0;url=...">} fallback;</li>
  *   <li>it stops as soon as the host is no longer a known shortener, so the real destination is
- *       never contacted — only the short-link services themselves are;</li>
+ *       never contacted — only the short-link services themselves are; every address is read the
+ *       way a browser reads it ({@link #browserReference}, {@link #canonicalHost}) and one that
+ *       java.net.URL would split differently is not resolved, so a short-link service is never
+ *       reported as the destination;</li>
  *   <li>no cookies, no credentials (userinfo is stripped from the request, no Authorization), no
  *       Referer, a generic non-browser User-Agent, no response cache.</li>
  * </ul>
@@ -168,12 +171,23 @@ public final class LuminaShortLinkResolver {
     static Result resolveBlocking(final String startUrl, final HostFilter filter, final Request request) {
         URL current;
         try {
-            current = new URL(startUrl);
+            final String start = browserReference(startUrl);
+            if (start == null) {
+                return Result.fail(FAIL_INVALID);
+            }
+            current = new URL(start);
         } catch (MalformedURLException e) {
             return Result.fail(FAIL_INVALID);
         }
         if (!isWeb(current)) {
             return Result.fail(FAIL_SCHEME);
+        }
+        // Only ever asked about a known short link. If java.net.URL sees a different host than a
+        // browser would (e.g. none at all for "https://x@y@t.co/"), nothing is contacted and nothing
+        // is reported as the destination.
+        final String startHost = sameAuthority(current) ? canonicalHost(current.getHost()) : null;
+        if (startHost == null || !filter.isShortener(startHost)) {
+            return Result.fail(FAIL_INVALID);
         }
         final long deadline = System.nanoTime() + TOTAL_TIMEOUT_MS * 1000000L;
         int redirects = 0;
@@ -181,7 +195,11 @@ public final class LuminaShortLinkResolver {
             if (request.isCancelled()) {
                 return Result.fail(CANCELLED);
             }
-            if (!filter.isShortener(current.getHost())) {
+            final String host = canonicalHost(current.getHost());
+            if (host == null) {
+                return Result.fail(FAIL_INVALID);
+            }
+            if (!isShortenerDomain(filter, host)) {
                 return new Result(OK, current.toExternalForm(), redirects, 0);
             }
             if (redirects >= MAX_HOPS) {
@@ -189,10 +207,13 @@ public final class LuminaShortLinkResolver {
             }
             Hop hop;
             try {
-                hop = fetch(current, "HEAD", deadline, request);
+                // Userinfo is never sent; the host is the one a browser would connect to.
+                final URL target = new URL(current.getProtocol(), host, current.getPort(),
+                        current.getFile() == null ? "" : current.getFile());
+                hop = fetch(target, "HEAD", deadline, request);
                 if (hop.location == null) {
                     // 405 / 400 / 200 / a 3xx without Location: some services only answer GET.
-                    hop = fetch(current, "GET", deadline, request);
+                    hop = fetch(target, "GET", deadline, request);
                 }
             } catch (SocketTimeoutException e) {
                 return Result.fail(request.isCancelled() ? CANCELLED : FAIL_TIMEOUT);
@@ -202,18 +223,26 @@ public final class LuminaShortLinkResolver {
             if (hop.location == null) {
                 return hop.code >= 400 ? new Result(FAIL_HTTP, null, 0, hop.code) : Result.fail(FAIL_NO_TARGET);
             }
-            final String scheme = schemeOf(hop.location);
+            final String location = browserReference(hop.location);
+            if (location == null) {
+                return Result.fail(FAIL_NO_TARGET);
+            }
+            final String scheme = schemeOf(location);
             if (scheme != null && !"http".equals(scheme) && !"https".equals(scheme)) {
                 return Result.fail(FAIL_SCHEME);
             }
             URL next;
             try {
-                next = new URL(current, hop.location);
+                next = new URL(current, location);
             } catch (MalformedURLException e) {
                 return Result.fail(FAIL_INVALID);
             }
-            if (!isWeb(next) || next.getHost() == null || next.getHost().isEmpty()) {
-                return Result.fail(isWeb(next) ? FAIL_INVALID : FAIL_SCHEME);
+            if (!isWeb(next)) {
+                return Result.fail(FAIL_SCHEME);
+            }
+            if (next.getHost() == null || next.getHost().isEmpty() || !sameAuthority(next)
+                    || canonicalHost(next.getHost()) == null) {
+                return Result.fail(FAIL_INVALID);
             }
             if (next.getRef() == null && current.getRef() != null) {
                 // RFC 7231 §7.1.2: a Location without a fragment inherits the one of the request.
@@ -423,6 +452,163 @@ public final class LuminaShortLinkResolver {
         }
         final Matcher m = SCHEME.matcher(reference.trim());
         return m.find() ? m.group(1).toLowerCase(Locale.ROOT) : null;
+    }
+
+    /**
+     * An address or Location value read the way a browser reads an http(s) URL (WHATWG): leading and
+     * trailing controls/spaces dropped, tabs and line breaks removed anywhere, "\" taken as "/" before
+     * the query, spaces percent-encoded. Without this the JDK's java.net.URL puts
+     * "https://t.co\@x.example/" on host x.example while a browser opens t.co, and a meta refresh
+     * "java&amp;#10;script:" would not be seen as a script address. Null when nothing is left.
+     */
+    static String browserReference(final String reference) {
+        if (reference == null) {
+            return null;
+        }
+        int start = 0;
+        int end = reference.length();
+        while (start < end && reference.charAt(start) <= ' ') {
+            start++;
+        }
+        while (end > start && reference.charAt(end - 1) <= ' ') {
+            end--;
+        }
+        final StringBuilder out = new StringBuilder(end - start);
+        boolean beforeQuery = true;
+        for (int i = start; i < end; i++) {
+            char ch = reference.charAt(i);
+            if (ch == '\t' || ch == '\n' || ch == '\r') {
+                continue;
+            }
+            if (ch == '?' || ch == '#') {
+                beforeQuery = false;
+            } else if (ch == '\\' && beforeQuery) {
+                ch = '/';
+            }
+            if (ch == ' ') {
+                out.append("%20");
+            } else {
+                out.append(ch);
+            }
+        }
+        return out.length() == 0 ? null : out.toString();
+    }
+
+    /**
+     * True for a known short-link host and for any subdomain of one ("preview.tinyurl.com"): such a
+     * page belongs to the short-link service itself, so it is looked up further (or reported as not
+     * revealing the target) instead of being presented as the destination under the service's own
+     * domain. {@code host} is a {@link #canonicalHost}.
+     */
+    public static boolean isShortenerDomain(final HostFilter filter, final String host) {
+        if (host == null) {
+            return false;
+        }
+        String h = host;
+        while (true) {
+            if (filter.isShortener(h)) {
+                return true;
+            }
+            final int dot = h.indexOf('.');
+            if (dot < 0 || h.indexOf('.', dot + 1) < 0) {
+                return false; // only a top-level label would be left
+            }
+            h = h.substring(dot + 1);
+        }
+    }
+
+    private static final Pattern HOST_NAME = Pattern.compile("[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*");
+    private static final Pattern IPV6_LITERAL = Pattern.compile("[0-9a-f:.]+");
+
+    /**
+     * The host a browser would connect to: percent-decoded, IDNA-mapped to ASCII (full-width letters,
+     * "。" and other dots), lower case, trailing dots dropped; IPv6 literals in brackets. Null when it is
+     * empty or not a plain host name / IP address. Used for every "is this still a short link?"
+     * decision, so "bit%2Ely" or "ｂｉｔ。ｌｙ" is never taken for a destination.
+     */
+    public static String canonicalHost(final String host) {
+        if (host == null) {
+            return null;
+        }
+        String h = host.trim();
+        if (h.startsWith("[") && h.endsWith("]") && h.length() > 2) {
+            h = h.substring(1, h.length() - 1);
+        }
+        if (h.indexOf(':') >= 0) {
+            final String v6 = h.toLowerCase(Locale.ROOT);
+            return IPV6_LITERAL.matcher(v6).matches() ? "[" + v6 + "]" : null;
+        }
+        if (h.indexOf('%') >= 0) {
+            h = percentDecode(h);
+            if (h == null) {
+                return null;
+            }
+        }
+        try {
+            h = java.net.IDN.toASCII(h, java.net.IDN.ALLOW_UNASSIGNED);
+        } catch (Exception e) {
+            return null;
+        }
+        h = h.toLowerCase(Locale.ROOT);
+        while (h.endsWith(".")) {
+            h = h.substring(0, h.length() - 1);
+        }
+        return HOST_NAME.matcher(h).matches() ? h : null;
+    }
+
+    private static String percentDecode(final String s) {
+        final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            final char ch = s.charAt(i);
+            if (ch == '%') {
+                if (i + 2 >= s.length()) {
+                    return null;
+                }
+                final int hi = Character.digit(s.charAt(i + 1), 16);
+                final int lo = Character.digit(s.charAt(i + 2), 16);
+                if (hi < 0 || lo < 0) {
+                    return null;
+                }
+                bytes.write(hi * 16 + lo);
+                i += 2;
+            } else if (ch < 0x80) {
+                bytes.write(ch);
+            } else {
+                final byte[] utf8 = String.valueOf(ch).getBytes(StandardCharsets.UTF_8);
+                bytes.write(utf8, 0, utf8.length);
+            }
+        }
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+        } catch (java.nio.charset.CharacterCodingException e) {
+            return null;
+        }
+    }
+
+    /**
+     * True when java.net.URL found the same authority a browser would (it ends at the first "/", "?",
+     * "#" or "\"). Belt and braces next to {@link #browserReference}: the JDK and Android parsers differ
+     * in detail, and an address whose host they would read differently is never resolved.
+     */
+    private static boolean sameAuthority(final URL url) {
+        final String authority = url.getAuthority();
+        final String external = url.toExternalForm();
+        final int start = external.indexOf("://");
+        if (authority == null || start < 0) {
+            return false;
+        }
+        int end = external.length();
+        for (int i = start + 3; i < external.length(); i++) {
+            final char ch = external.charAt(i);
+            if (ch == '/' || ch == '?' || ch == '#' || ch == '\\') {
+                end = i;
+                break;
+            }
+        }
+        return authority.equals(external.substring(start + 3, end));
     }
 
     private static boolean isWeb(final URL url) {

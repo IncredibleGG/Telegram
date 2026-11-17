@@ -133,6 +133,9 @@ public final class LuminaShortLinkDialog {
         field.setSingleLine(false);
         field.setHorizontallyScrolling(false);
         field.setMaxLines(6);
+        // setSingleLine(false) adds TYPE_TEXT_FLAG_MULTI_LINE, and for a multi-line field the IME shows
+        // a newline key instead of "Go". Set the type again without touching the wrapping layout.
+        field.setRawInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         field.setImeOptions(EditorInfo.IME_ACTION_GO | EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         field.setGravity(Gravity.LEFT | Gravity.TOP);
         field.setTextDirection(View.TEXT_DIRECTION_LTR); // an address reads left to right in every locale
@@ -235,7 +238,8 @@ public final class LuminaShortLinkDialog {
             return;
         }
         AndroidUtilities.cancelRunOnUIThread(watchdog);
-        if (result.status == LuminaShortLinkResolver.OK && result.url != null && result.redirects > 0) {
+        if (result.status == LuminaShortLinkResolver.OK && result.url != null && result.redirects > 0
+                && showsRealDestination(result.url)) {
             state = STATE_RESOLVED;
             resolvedUrl = result.url;
             resolvedRedirects = result.redirects;
@@ -452,6 +456,48 @@ public final class LuminaShortLinkDialog {
      * suffix, an unknown TLD), or null when the text has no host.
      */
     static int[] registrableRange(String url) {
+        final int[] hostRange = hostRange(url);
+        if (hostRange == null) {
+            return null;
+        }
+        final int hostStart = hostRange[0];
+        final int hostEnd = hostRange[1];
+        if (url.charAt(hostStart) == '[') {
+            return hostRange;
+        }
+        final String host = url.substring(hostStart, hostEnd);
+        final String registrable = publicSuffixesReady ? registrableDomain(host) : null;
+        if (registrable == null || registrable.length() > host.length()
+                || !host.regionMatches(true, host.length() - registrable.length(), registrable, 0, registrable.length())) {
+            return hostRange;
+        }
+        return new int[]{hostEnd - registrable.length(), hostEnd};
+    }
+
+    /**
+     * A resolved address may be presented as the real destination only when the host this prompt
+     * shows (and bolds) and the host Android opens are the same and neither is a short-link service.
+     * The resolver already guarantees this; checked again here because it is the one promise of the
+     * prompt: the shortener's own domain is never labelled as the real address.
+     */
+    static boolean showsRealDestination(String url) {
+        final int[] range = hostRange(url);
+        if (range == null) {
+            return false;
+        }
+        final String shown = LuminaShortLinkResolver.canonicalHost(url.substring(range[0], range[1]));
+        final String opened;
+        try {
+            opened = LuminaShortLinkResolver.canonicalHost(Uri.parse(url).getHost());
+        } catch (Exception e) {
+            return false;
+        }
+        return shown != null && shown.equals(opened)
+                && !LuminaShortLinkResolver.isShortenerDomain(Browser::luminaIsKnownShortener, shown);
+    }
+
+    /** Character range of the host inside {@code url} (trailing dots excluded), or null without one. */
+    static int[] hostRange(String url) {
         if (url == null) {
             return null;
         }
@@ -488,13 +534,7 @@ public final class LuminaShortLinkDialog {
         if (hostEnd <= hostStart) {
             return null;
         }
-        final String host = url.substring(hostStart, hostEnd);
-        final String registrable = publicSuffixesReady ? registrableDomain(host) : null;
-        if (registrable == null || registrable.length() > host.length()
-                || !host.regionMatches(true, host.length() - registrable.length(), registrable, 0, registrable.length())) {
-            return new int[]{hostStart, hostEnd};
-        }
-        return new int[]{hostEnd - registrable.length(), hostEnd};
+        return new int[]{hostStart, hostEnd};
     }
 
     /** Public-suffix-list registrable domain of {@code host} (lower case), or null when there is none. */
