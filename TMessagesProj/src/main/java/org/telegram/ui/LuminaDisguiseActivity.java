@@ -237,7 +237,35 @@ public class LuminaDisguiseActivity extends BaseFragment {
         if (LuminaDuress.isLogoutMode(mode)) {
             info = info + "\n\n" + LuminaLocale.getString(R.string.LuminaDuressLogoutWarning);
         }
+        // The passcode or the vault's secret code may have been set to the duress code after it
+        // was saved; the duress code then does nothing. Say so while the feature is on.
+        final int clash = enabled ? LuminaDuress.clashOf(LuminaDuress.getCode()) : LuminaDuress.CLASH_NONE;
+        if (clash != LuminaDuress.CLASH_NONE) {
+            info = info + "\n\n" + LuminaLocale.getString(R.string.LuminaDuressCodeDialogTitle) + ": "
+                    + LuminaLocale.getString(clashMessage(clash));
+        }
         items.add(UItem.asShadow(info));
+    }
+
+    private static int clashMessage(int clash) {
+        return clash == LuminaDuress.CLASH_PASSCODE
+                ? R.string.LuminaDuressCodeSameAsPasscode
+                : R.string.LuminaDuressCodeSameAsVault;
+    }
+
+    /**
+     * Before arming a mode: if the stored duress code is the passcode or the vault's secret
+     * code (set to it later, or a code kept from the fake-crash era), open the code dialog with
+     * that reason instead; {@code then} runs once a valid code is saved. Returns true when it
+     * did so, false when there is no clash and the caller can go ahead.
+     */
+    private boolean fixDuressCodeClash(Runnable then) {
+        final int clash = LuminaDuress.clashOf(LuminaDuress.getCode());
+        if (clash == LuminaDuress.CLASH_NONE) {
+            return false;
+        }
+        showDuressCodeDialog(clashMessage(clash), then);
+        return true;
     }
 
     private CharSequence duressCodeValueText() {
@@ -302,8 +330,19 @@ public class LuminaDisguiseActivity extends BaseFragment {
             case ID_DURESS_ENABLED:
                 // Turning the switch on only ever selects the non-destructive "close the app"
                 // mode; a logout mode needs its own confirmed warning (confirmDuressLogoutMode).
-                LuminaDuress.setMode(LuminaDuress.isEnabled() ? LuminaDuress.MODE_OFF : LuminaDuress.MODE_EXIT);
-                update();
+                // A stored code that clashes with the passcode / vault code is fixed first.
+                if (LuminaDuress.isEnabled()) {
+                    LuminaDuress.setMode(LuminaDuress.MODE_OFF);
+                    update();
+                } else if (!fixDuressCodeClash(() -> {
+                    if (!LuminaDuress.isEnabled()) {
+                        LuminaDuress.setMode(LuminaDuress.MODE_EXIT);
+                    }
+                    update();
+                })) {
+                    LuminaDuress.setMode(LuminaDuress.MODE_EXIT);
+                    update();
+                }
                 break;
             case ID_DURESS_MODE_LOGOUT_CURRENT:
                 confirmDuressLogoutMode(LuminaDuress.MODE_LOGOUT_CURRENT);
@@ -526,6 +565,11 @@ public class LuminaDisguiseActivity extends BaseFragment {
         if (mode.equals(LuminaDuress.getMode()) || getParentActivity() == null) {
             return;
         }
+        // Never arm a logout mode on a code that is the passcode or the vault's secret code:
+        // fix the code first, then come back here for the warning.
+        if (fixDuressCodeClash(() -> confirmDuressLogoutMode(mode))) {
+            return;
+        }
         final boolean all = LuminaDuress.MODE_LOGOUT_ALL.equals(mode);
         AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
         builder.setTitle(LuminaLocale.getString(all
@@ -567,6 +611,15 @@ public class LuminaDisguiseActivity extends BaseFragment {
      * screen only accepts 4 digits, so the dialog says so.
      */
     private void showDuressCodeDialog() {
+        showDuressCodeDialog(0, null);
+    }
+
+    /**
+     * @param reasonRes when non-zero, shown as the dialog's message: why the code has to be
+     *                  changed before a mode can be armed (see {@link #fixDuressCodeClash}).
+     * @param afterSave run once a valid code was saved (not on cancel or a rejected code).
+     */
+    private void showDuressCodeDialog(int reasonRes, Runnable afterSave) {
         final Context context = getParentActivity();
         if (context == null) {
             return;
@@ -590,29 +643,34 @@ public class LuminaDisguiseActivity extends BaseFragment {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(LuminaLocale.getString(R.string.LuminaDuressCodeDialogTitle));
+        String message = reasonRes != 0 ? LuminaLocale.getString(reasonRes) : null;
         if (SharedConfig.passcodeHash.length() > 0 && SharedConfig.passcodeType == SharedConfig.PASSCODE_TYPE_PIN) {
-            builder.setMessage(LuminaLocale.getString(R.string.LuminaDuressCodePinHint));
+            String pinHint = LuminaLocale.getString(R.string.LuminaDuressCodePinHint);
+            message = message == null ? pinHint : message + "\n\n" + pinHint;
+        }
+        if (message != null) {
+            builder.setMessage(message);
         }
         builder.setView(container);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
             final String entered = edit.getText().toString().trim();
             // The duress code must NOT equal the real Telegram passcode. PasscodeView lets the
             // real passcode win anyway, but then the duress code could never fire there; say so
-            // instead of saving a code that silently does nothing.
-            if (!entered.isEmpty() && SharedConfig.checkPasscode(entered)) {
-                showCodeError(R.string.LuminaDuressCodeDialogTitle, R.string.LuminaDuressCodeSameAsPasscode);
-                return;
-            }
-            // Nor the vault's secret code: the vault checks its unlock code first, so the duress
-            // code would never fire on the password door or the decoys.
-            final String vaultCode = LuminaConfig.getString(KEY_DECOY_CODE, "");
-            if (!entered.isEmpty() && entered.equals(vaultCode)) {
-                showCodeError(R.string.LuminaDuressCodeDialogTitle, R.string.LuminaDuressCodeSameAsVault);
+            // instead of saving a code that silently does nothing. Nor the vault's secret code:
+            // the vault checks its unlock code first, so the duress code would never fire on the
+            // password door or the decoys.
+            final int clash = LuminaDuress.clashOf(entered);
+            if (clash != LuminaDuress.CLASH_NONE) {
+                showCodeError(R.string.LuminaDuressCodeDialogTitle, clashMessage(clash));
                 return;
             }
             LuminaDuress.setCode(entered);
             update();
             AndroidUtilities.hideKeyboard(edit);
+            if (afterSave != null) {
+                // After this dialog is gone: afterSave may open the next one.
+                AndroidUtilities.runOnUIThread(afterSave);
+            }
         });
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         showDialog(builder.create());
