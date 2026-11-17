@@ -8983,6 +8983,10 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 loadingBlockedPeers = false;
                 getNotificationCenter().postNotificationName(NotificationCenter.blockedUsersDidLoad);
+            } else {
+                // LuminaGram: one failed load (an RPC error) kept the flag set for the whole session, so the
+                // blocked users page and its "unblock all" menu stayed empty: let the next open load again
+                loadingBlockedPeers = false;
             }
         }));
     }
