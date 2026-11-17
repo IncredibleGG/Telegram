@@ -223,6 +223,12 @@ public class LuminaSecurityActivity extends BaseFragment {
             } catch (Exception ignored) {
             }
         }
+        // LuminaGram 隱藏重複廣告: the whole AdShield root, the similar-image tables, the per-group modes and
+        // the wrapped key (each logout above already forgot its own account).
+        try {
+            org.telegram.messenger.lumina.LuminaAdShieldManager.panicWipe();
+        } catch (Exception ignored) {
+        }
         // (b) THEN erase cached media OFF the main thread to avoid an ANR on a large cache.
         Utilities.globalQueue.postRunnable(() -> clearLocalMediaCache());
     }

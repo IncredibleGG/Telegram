@@ -482,6 +482,8 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenuItem.Item translateItem;
     private ActionBarMenuItem searchIconItem;
     private ActionBarMenuItem luminaTranslateHeaderItem; // LuminaGram: per-chat translate toggle icon in the chat header
+    // LuminaGram 隱藏重複廣告: AdShield state of this group (null = not an eligible group / not MODE_DEFAULT).
+    public org.telegram.messenger.lumina.LuminaAdShieldChatSession luminaAdShield;
     private ActionBarMenu.LazyItem audioCallIconItem;
     private boolean searchItemVisible;
     private RadialProgressView progressBar;
@@ -1751,6 +1753,7 @@ public class ChatActivity extends BaseFragment implements
     // chat_menu_topics_panel, which our old go_to_first_message = 75 silently shadowed).
     private final static int go_to_first_message = LuminaMenuIds.CHAT_GO_TO_FIRST_MESSAGE;
     private final static int lumina_translate_toggle = LuminaMenuIds.CHAT_TRANSLATE_TOGGLE; // LuminaGram: header per-chat translate toggle
+    private final static int lumina_ad_shield = LuminaMenuIds.CHAT_AD_SHIELD; // LuminaGram: 隱藏重複廣告 per-group mode
     private final static int chat_menu_topics_panel = 75;
 
     private final static int id_chat_compose_panel = 1000;
@@ -3091,6 +3094,30 @@ public class ChatActivity extends BaseFragment implements
             loadInfo = userInfo == null;
         }
 
+        // LuminaGram 隱藏重複廣告: created before the first history load so it sees it; inert while the feature is off.
+        luminaAdShield = org.telegram.messenger.lumina.LuminaAdShieldChatSession.open(currentAccount, currentChat, chatMode, isInsideContainer,
+                new org.telegram.messenger.lumina.LuminaAdShieldChatSession.Host() {
+                    @Override
+                    public int getClassGuid() {
+                        return classGuid;
+                    }
+
+                    @Override
+                    public java.util.List<MessageObject> getLoadedMessages() {
+                        return messages;
+                    }
+
+                    @Override
+                    public java.util.Collection<MessageObject> getPinnedMessages() {
+                        return pinnedMessageObjects != null ? pinnedMessageObjects.values() : null;
+                    }
+
+                    @Override
+                    public TLRPC.ChatFull getChatFull() {
+                        return chatInfo;
+                    }
+                });
+
         if (forceHistoryEmpty) {
             endReached[0] = endReached[1] = true;
             forwardEndReached[0] = forwardEndReached[1] = true;
@@ -3377,6 +3404,10 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        if (luminaAdShield != null) {
+            luminaAdShield.close();
+            luminaAdShield = null;
+        }
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
@@ -4030,6 +4061,8 @@ public class ChatActivity extends BaseFragment implements
                     openSearchWithText(isSupportedTags() ? "" : null);
                 } else if (id == go_to_first_message) {
                     jumpToDate(1);
+                } else if (id == lumina_ad_shield) {
+                    LuminaAdShieldChatMenu.show(ChatActivity.this, luminaAdShield);
                 } else if (id == translate) {
                     getMessagesController().getTranslateController().setHideTranslateDialog(getDialogId(), false, true);
                     if (!getMessagesController().getTranslateController().toggleTranslatingDialog(getDialogId(), true)) {
@@ -4458,6 +4491,9 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(search, R.drawable.msg_search, LocaleController.getString(R.string.Search));
             }
             headerItem.lazilyAddSubItem(go_to_first_message, R.drawable.msg_go_up, LuminaLocale.getString(R.string.LuminaGoToFirstMessage));
+            if (luminaAdShield != null) {
+                headerItem.lazilyAddSubItem(lumina_ad_shield, R.drawable.msg_archive_hide, LuminaLocale.getString(R.string.LuminaAdShieldTitle));
+            }
             if (ChatObject.isBoostSupported(currentChat) && (getUserConfig().isPremium() || ChatObject.isBoosted(chatInfo) || ChatObject.hasAdminRights(currentChat))) {
                 RLottieDrawable drawable = new RLottieDrawable(R.raw.boosts, dp(24), dp(24));
                 headerItem.lazilyAddSubItem(boost_group, drawable, LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.BoostingBoostChannelMenu : R.string.BoostingBoostGroupMenu));

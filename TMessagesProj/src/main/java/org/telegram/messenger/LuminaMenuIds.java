@@ -39,6 +39,7 @@ public final class LuminaMenuIds {
     // ChatActivity header (actionBar) menu
     public static final int CHAT_GO_TO_FIRST_MESSAGE = BASE + 1;
     public static final int CHAT_TRANSLATE_TOGGLE = BASE + 2;
+    public static final int CHAT_AD_SHIELD = BASE + 3;          // 隱藏重複廣告: per-group mode
 
     // ChatActivity message context-menu options (processSelectedOption)
     public static final int CHAT_OPTION_FORWARD_NO_AUTHOR = BASE + 100;

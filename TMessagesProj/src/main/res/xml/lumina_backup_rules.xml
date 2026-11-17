@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    LuminaGram: full-backup rules (Android 11 and lower). 隱藏重複廣告 (AdShield) keeps per-install hashed
+    state that must never leave the device: both file roots and its prefs file (Keystore-wrapped key,
+    per-group modes) are excluded. Everything else keeps the platform default.
+-->
+<full-backup-content>
+    <exclude domain="file" path="luminagram_adshield" />
+    <exclude domain="file" path="luminagram_adshield_img" />
+    <exclude domain="sharedpref" path="luminagram_adshield.xml" />
+</full-backup-content>

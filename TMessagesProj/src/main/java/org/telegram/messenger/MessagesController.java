@@ -7580,6 +7580,11 @@ public class MessagesController extends BaseController implements NotificationCe
         return channelAdmins.get(chatId) != null;
     }
 
+    /** LuminaGram (隱藏重複廣告): the loaded admin list of a channel / supergroup, or null. UI thread, read only. */
+    public LongSparseArray<TLRPC.ChannelParticipant> getLuminaChannelAdmins(long chatId) {
+        return channelAdmins.get(chatId);
+    }
+
     public void loadChannelAdmins(long chatId, boolean cache) {
         int loadTime = loadingChannelAdmins.get(chatId);
         if ((SystemClock.elapsedRealtime() / 1000) - loadTime < 60) {
@@ -16168,6 +16173,8 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void performLogout(int type) {
+        // LuminaGram: 隱藏重複廣告 ForgetAll for this account, on every logout type (before the config is cleared).
+        org.telegram.messenger.lumina.LuminaAdShieldManager.onLogout(currentAccount, getUserConfig().getClientUserId());
         if (type == 1) {
             GramWalletStorage.wipeForUser(ApplicationLoader.applicationContext, currentAccount, getUserConfig().getClientUserId());
             unregistedPush();

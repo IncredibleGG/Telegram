@@ -275,6 +275,8 @@ public class ApplicationLoader extends Application {
             DownloadController.getInstance(a);
         }
         BillingController.getInstance().startConnection();
+        // LuminaGram: 隱藏重複廣告 startup cleanup (returns at once while the feature is off and nothing is on disk).
+        AndroidUtilities.runOnUIThread(org.telegram.messenger.lumina.LuminaAdShieldManager::onAppStarted);
         // HTML widgets: the isolated engine's process up front, after the app's own start, so that a widget's first
         // frame does not wait for it.
         AndroidUtilities.runOnUIThread(() -> Utilities.globalQueue.postRunnable(

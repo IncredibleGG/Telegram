@@ -9,6 +9,7 @@ import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.lumina.LuminaAdShieldManager;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -52,6 +53,15 @@ public class LuminaChatActivity extends BaseFragment {
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         return fragmentView;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // the 隱藏重複廣告 row shows the global on/off value, which its sub page may have changed
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(false);
+        }
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
@@ -107,6 +117,11 @@ public class LuminaChatActivity extends BaseFragment {
         items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMessageFilter)));
         items.add(UItem.asButton(28, LuminaLocale.getString(R.string.LuminaMessageFilterManage)));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMessageFilterInfo)));
+
+        // 隱藏重複廣告 (hide repeated ads in groups)
+        items.add(UItem.asButton(29, LuminaLocale.getString(R.string.LuminaAdShieldTitle),
+                LuminaLocale.getString(LuminaAdShieldManager.isGloballyEnabled() ? R.string.LuminaAdShieldValueOn : R.string.LuminaAdShieldValueOff)));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaAdShieldEntryInfo)));
 
         items.add(UItem.asShadow(null));
     }
@@ -182,6 +197,9 @@ public class LuminaChatActivity extends BaseFragment {
                 break;
             case 28:
                 presentFragment(new LuminaMessageFilterActivity());
+                return;
+            case 29:
+                presentFragment(new LuminaAdShieldActivity());
                 return;
         }
         if (listView != null && listView.adapter != null) {

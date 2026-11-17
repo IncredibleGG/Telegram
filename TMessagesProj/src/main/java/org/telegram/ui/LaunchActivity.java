@@ -7017,6 +7017,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         PipCoordinator.getInstance().onActivityPause(this);
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 4096);
         ApplicationLoader.mainInterfacePaused = true;
+        // LuminaGram: 隱藏重複廣告 writes pending chats when the app leaves the foreground (no-op while unused).
+        org.telegram.messenger.lumina.LuminaAdShieldManager.onAppBackground();
         int account = currentAccount;
         Utilities.stageQueue.postRunnable(() -> {
             ApplicationLoader.mainInterfacePausedStageQueue = true;

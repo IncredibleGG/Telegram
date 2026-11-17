@@ -102,6 +102,8 @@
         android:allowBackup="true"
         android:restoreAnyVersion="true"
         android:backupAgent=".BackupAgent"
+        android:fullBackupContent="@xml/lumina_backup_rules"
+        android:dataExtractionRules="@xml/lumina_data_extraction_rules"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         android:theme="@style/Theme.TMessages.Start"
