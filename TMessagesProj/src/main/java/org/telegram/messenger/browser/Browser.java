@@ -385,9 +385,12 @@ public class Browser {
             final boolean fAllowInAppBrowser = allowInAppBrowser;
             final boolean fForceRequest = forceRequest;
             final boolean fKeepWebAuthTokens = keepWebAuthTokens;
-            luminaShowLinkSafetySheet(context, fUri, () -> {
-                luminaLinkSafetyApprovedUrl = fUri.toString();
-                openUrl(context, fUri, fAllowCustom, fTryTelegraph, fForceNotInternalForApps, fInCaseLoading, fBrowser, fAllowIntent, fAllowInAppBrowser, fForceRequest, fKeepWebAuthTokens);
+            luminaShowLinkSafetySheet(context, fUri, chosen -> {
+                // chosen == fUri except from the short link prompt, which opens the resolved or
+                // edited address instead; it is approved the same way, so it is not asked again.
+                Uri target = chosen == null || chosen == fUri ? fUri : (fKeepWebAuthTokens ? chosen : withoutWebAuthTokens(chosen));
+                luminaLinkSafetyApprovedUrl = target.toString();
+                openUrl(context, target, fAllowCustom, fTryTelegraph, fForceNotInternalForApps, fInCaseLoading, fBrowser, fAllowIntent, fAllowInAppBrowser, fForceRequest, fKeepWebAuthTokens);
             });
             return;
         }
@@ -550,6 +553,10 @@ public class Browser {
     //   (c) the host is punycode/IDN ("xn--") or mixes letters from different alphabets
     //       (e.g. Cyrillic among Latin) -- classic look-alike / homograph domains;
     //   (d) the host is a known URL shortener that hides the real destination.
+    // LuminaGram 1.6: a link whose host is a known shortener gets LuminaShortLinkDialog
+    // instead, which looks up the real address (the one network exception: only the
+    // short-link services are contacted, never the destination) and lets the user edit
+    // the address before opening it. Every other link gets the same sheet as before.
 
     // Last URL the user approved via the safety sheet. Kept so the re-invoked open (and
     // async paths such as Instant View / Telegraph that call openUrl again with the same
@@ -563,6 +570,41 @@ public class Browser {
         "t.ly", "s.id", "v.gd", "clck.ru", "vk.cc", "adf.ly", "shorte.st",
         "lnkd.in", "db.tt", "qr.ae", "u.to", "x.co", "trib.al", "shrtco.de"
     };
+
+    // True when tapping this host shows the short link prompt. Trailing dots are dropped:
+    // "bit.ly." is the same host as "bit.ly". Safe from any thread.
+    public static boolean luminaIsKnownShortener(String host) {
+        if (host == null) {
+            return false;
+        }
+        String bare = host.toLowerCase(java.util.Locale.ROOT);
+        while (bare.endsWith(".")) {
+            bare = bare.substring(0, bare.length() - 1);
+        }
+        if (bare.startsWith("www.")) {
+            bare = bare.substring(4);
+        }
+        for (String s : LUMINA_URL_SHORTENERS) {
+            if (bare.equals(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // True when openUrl() is going to ask about this address itself (link safety on, an
+    // external web link, not just approved). AlertsCreator.showOpenUrlAlert() then skips
+    // upstream's own "Open Link" box so a click is confirmed exactly once.
+    public static boolean luminaLinkSafetyWillConfirm(String url) {
+        if (url == null) {
+            return false;
+        }
+        try {
+            return luminaLinkSafetyShouldConfirm(withoutWebAuthTokens(Uri.parse(url)));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private static boolean luminaLinkSafetyShouldConfirm(Uri uri) {
         try {
@@ -595,6 +637,12 @@ public class Browser {
     }
 
     private static java.util.ArrayList<String> luminaLinkSafetyWarnings(Uri uri) {
+        return luminaLinkSafetyWarnings(uri, true);
+    }
+
+    // The offline checks above, also run by the short link prompt on an edited address;
+    // includeShortener=false leaves out (d) where the prompt already says it in its status.
+    public static java.util.ArrayList<String> luminaLinkSafetyWarnings(Uri uri, boolean includeShortener) {
         java.util.ArrayList<String> warnings = new java.util.ArrayList<>();
         try {
             // (b) userinfo hides the real destination, e.g. https://paypal.com@evil.example
@@ -621,12 +669,8 @@ public class Browser {
                     warnings.add(LuminaLocale.getString(R.string.LuminaLinkSafetyWarnMixedScript));
                 }
                 // (d) known URL shorteners
-                String bare = host.startsWith("www.") ? host.substring(4) : host;
-                for (String s : LUMINA_URL_SHORTENERS) {
-                    if (bare.equals(s)) {
-                        warnings.add(LuminaLocale.getString(R.string.LuminaLinkSafetyWarnShortener));
-                        break;
-                    }
+                if (includeShortener && luminaIsKnownShortener(host)) {
+                    warnings.add(LuminaLocale.getString(R.string.LuminaLinkSafetyWarnShortener));
                 }
             }
         } catch (Exception e) {
@@ -655,8 +699,11 @@ public class Browser {
         return (latin && cyrillic) || (latin && greek) || (cyrillic && greek);
     }
 
-    private static void luminaShowLinkSafetySheet(final Context context, final Uri uri, final Runnable onOpen) {
+    private static void luminaShowLinkSafetySheet(final Context context, final Uri uri, final org.telegram.messenger.Utilities.Callback<Uri> onOpen) {
         try {
+            if (luminaIsKnownShortener(uri.getHost()) && org.telegram.ui.LuminaShortLinkDialog.show(context, uri, onOpen)) {
+                return; // a known short link: the prompt that looks up the real address
+            }
             java.util.ArrayList<String> warnings = luminaLinkSafetyWarnings(uri);
             StringBuilder message = new StringBuilder();
             message.append(uri.toString()); // (a) the full resolved URL
@@ -668,7 +715,7 @@ public class Browser {
             builder.setMessage(message.toString());
             builder.setPositiveButton(LocaleController.getString(R.string.Open), (dialog, which) -> {
                 if (onOpen != null) {
-                    onOpen.run();
+                    onOpen.run(uri);
                 }
             });
             builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
@@ -676,7 +723,7 @@ public class Browser {
         } catch (Exception e) {
             FileLog.e(e);
             if (onOpen != null) {
-                onOpen.run(); // never silently swallow a link if the sheet cannot be shown
+                onOpen.run(uri); // never silently swallow a link if the sheet cannot be shown
             }
         }
     }

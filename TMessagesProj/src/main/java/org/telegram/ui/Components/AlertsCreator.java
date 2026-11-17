@@ -1791,6 +1791,13 @@ public class AlertsCreator {
             Browser.openUrl(context, Uri.parse(url), inlineReturn == 0, tryTelegraph, forceNotInternalForApps && checkInternalBotApp(url), progress, null, false, true, false);
             return;
         }
+        // LuminaGram: one confirmation per click. With link safety on, Browser.openUrl() asks about
+        // this address itself (full address, warnings, short link lookup), so that prompt replaces
+        // this box instead of following it.
+        if (Browser.luminaLinkSafetyWillConfirm(url)) {
+            Browser.openUrl(context, Uri.parse(url), inlineReturn == 0, tryTelegraph, progress);
+            return;
+        }
 
         final String urlFinal = Browser.formatUrlForDisplay(url, punycode);
 

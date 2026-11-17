@@ -2802,7 +2802,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
     }
 
     public void showOpenUrlAlert(final String url, boolean ask) {
-        if (Browser.isInternalUrl(url, null) || !ask) {
+        // LuminaGram: with link safety on, Browser.openUrl() confirms the click itself (once).
+        if (Browser.isInternalUrl(url, null) || !ask || Browser.luminaLinkSafetyWillConfirm(url)) {
             Browser.openUrl(getParentActivity(), url, true);
         } else {
             AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
