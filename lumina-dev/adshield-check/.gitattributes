@@ -1,0 +1,3 @@
+# Test vectors and corpus must stay byte-identical (no CRLF conversion on Windows checkouts).
+vectors/** -text
+corpus/** -text
