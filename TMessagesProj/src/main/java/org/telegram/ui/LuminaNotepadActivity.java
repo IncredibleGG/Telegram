@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaDecoy;
+import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
 
@@ -35,12 +36,15 @@ import org.telegram.messenger.R;
  *     against the secret code ({@code decoyUnlockCode}). On an EXACT match it hands control
  *     to {@link LuminaDecoy#unlockAndProceed(android.app.Activity)}, which proceeds into the
  *     real app. Any other long-press does nothing visible; there is no hint this is a lock.
+ *     If the body is the duress code, {@link LuminaDuress#onVaultEntry} logs out (logout
+ *     modes only), with nothing visible either.
  *   - BACK drops to the background (never reveals the real app), so the lock is not
  *     bypassable via BACK; a fresh cold launch re-arms it.
  *
- * Nothing here touches Telegram state, so a crash is impossible to turn into a data leak;
- * the worst case is a normal notepad that fails to unlock. If the UI build itself throws,
- * it fails OPEN into the real app so a decoy crash can never lock the user out.
+ * Apart from the duress logout, nothing here touches Telegram state, so a crash is impossible
+ * to turn into a data leak; the worst case is a normal notepad that fails to unlock. If the UI
+ * build itself throws, it fails OPEN into the real app so a decoy crash can never lock the user
+ * out.
  */
 public class LuminaNotepadActivity extends Activity {
 
@@ -146,16 +150,16 @@ public class LuminaNotepadActivity extends Activity {
         try {
             code = LuminaConfig.getString(LuminaDecoy.KEY_CODE, "");
         } catch (Throwable ignore) {
-            return false;
-        }
-        if (code == null || code.length() == 0) {
-            return false;
+            code = null;
         }
         String current = noteEdit == null ? "" : noteEdit.getText().toString().trim();
-        if (current.equals(code)) {
+        if (code != null && code.length() > 0 && current.equals(code)) {
             LuminaDecoy.unlockAndProceed(this);
             return true;
         }
+        // Duress code: log out when a logout mode is on. The long-press still reports "not
+        // handled", exactly like any other long-press, so nothing looks unusual.
+        LuminaDuress.onVaultEntry(current);
         return false;
     }
 

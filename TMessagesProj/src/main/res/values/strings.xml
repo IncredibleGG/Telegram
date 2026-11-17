@@ -11582,22 +11582,27 @@
     <string name="LuminaSecurityDisguiseHeader">Disguise</string>
     <string name="LuminaSecurityDisguise">Disguise as Calculator</string>
     <string name="LuminaSecurityDisguiseInfo">Replace the app\'s launcher icon and name with a plain Calculator. Turn off to restore the normal LuminaGram icon.</string>
-    <!-- LuminaGram security: fake-crash duress unlock -->
-    <string name="LuminaSecurityFakeCrashHeader">Fake-crash unlock</string>
-    <string name="LuminaSecurityFakeCrashEnable">Enable fake-crash unlock</string>
-    <string name="LuminaSecurityFakeCrashSetCode">Set fake-crash code</string>
-    <string name="LuminaSecurityFakeCrashCodeSet">Set</string>
-    <string name="LuminaSecurityFakeCrashCodeNotSet">Not set</string>
-    <string name="LuminaSecurityFakeCrashCodeDialogTitle">Fake-crash code</string>
-    <string name="LuminaSecurityFakeCrashCodeSameAsPasscode">This code can\'t be the same as your passcode lock.</string>
-    <string name="LuminaSecurityFakeCrashInfo">When on, entering this code at the passcode screen closes the app instead of unlocking it, either right away or after a fake Android crash alert. This code is separate from your Telegram passcode and from the decoy calculator lock.</string>
-    <string name="LuminaFakeCrashTitle">LuminaGram keeps stopping</string>
-    <string name="LuminaFakeCrashCloseApp">Close app</string>
-    <string name="LuminaFakeCrashModeHeader">When this code is entered</string>
-    <string name="LuminaFakeCrashModeDialog">Show fake crash alert</string>
-    <string name="LuminaFakeCrashModeDialogInfo">Shows a system-style “LuminaGram keeps stopping” alert first; the app closes when “Close app” is tapped.</string>
-    <string name="LuminaFakeCrashModeExit">Exit immediately</string>
-    <string name="LuminaFakeCrashModeExitInfo">Closes the app at once, without showing any alert.</string>
+    <!-- LuminaGram security: duress code (log out / close the app; formerly the fake-crash code) -->
+    <string name="LuminaDuressHeader">Duress code</string>
+    <string name="LuminaDuressEnable">Enable duress code</string>
+    <string name="LuminaDuressModeHeader">When this code is entered</string>
+    <string name="LuminaDuressModeLogoutCurrent">Log out current account</string>
+    <string name="LuminaDuressModeLogoutCurrentInfo">Only the current account is logged out when this code is entered. Before turning this on, make sure this account is also logged in on another device, so you can receive the login code there.</string>
+    <string name="LuminaDuressModeLogoutAll">Log out all accounts</string>
+    <string name="LuminaDuressModeLogoutAllInfo">Every account on this device is logged out when this code is entered. Make sure each account\'s phone number can receive SMS login codes, or that account can\'t be logged back in.</string>
+    <string name="LuminaDuressModeExit">Close the app only</string>
+    <string name="LuminaDuressModeExitInfo">Closes the app at once without logging out. Works on the passcode lock screen.</string>
+    <string name="LuminaDuressSetCode">Set duress code</string>
+    <string name="LuminaDuressCodeSet">Set</string>
+    <string name="LuminaDuressCodeNotSet">Not set</string>
+    <string name="LuminaDuressCodeDialogTitle">Duress code</string>
+    <string name="LuminaDuressCodePinHint">Your passcode lock is a 4-digit PIN, so use 4 digits here too, or the code can\'t be typed on the lock screen.</string>
+    <string name="LuminaDuressCodeSameAsPasscode">This code can\'t be the same as your passcode lock.</string>
+    <string name="LuminaDuressCodeSameAsVault">This code can\'t be the same as the disguise vault\'s secret code.</string>
+    <string name="LuminaVaultCodeSameAsDuress">The secret code can\'t be the same as the duress code.</string>
+    <string name="LuminaDuressInfo">A separate code that must differ from your passcode lock and the vault\'s secret code. Only this exact code does what you picked; typos and other wrong codes are handled as usual. Works on the passcode lock screen and in the disguise vault (password door, decoy calculator with “=”, decoy notepad by long-pressing the title), where the decoy stays on screen as usual.</string>
+    <string name="LuminaDuressLogoutWarning">Logging out removes this device\'s secret chats and everything else kept only on this device. This can\'t be undone.</string>
+    <string name="LuminaDuressConfirmEnable">I understand, turn on</string>
     <!-- LuminaGram intro slide 0: Telegram API Terms of Service 2.2 attribution -->
     <string name="LuminaIntroPoweredBy">Powered by the Telegram API, part of the Telegram ecosystem.</string>
     <!-- LuminaGram encrypted local backup (export / import) -->

@@ -12,6 +12,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaDecoy;
+import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
 
@@ -31,12 +32,15 @@ import java.util.Locale;
  *   - "=" first checks whether the current entry exactly equals the secret unlock code
  *     ({@code decoyUnlockCode}). If so it flips {@link LuminaDecoy#unlocked} and hands
  *     control to {@link LaunchActivity}, which then proceeds into the real app. If not,
- *     it just evaluates the arithmetic — indistinguishable from an ordinary calculator.
+ *     it just evaluates the arithmetic — indistinguishable from an ordinary calculator. If
+ *     the entry is the duress code, {@link LuminaDuress#onVaultEntry} logs out first (logout
+ *     modes only) and the arithmetic result is shown all the same.
  *   - BACK drops to the background (never reveals the real app), so the lock is not
  *     bypassable via BACK; a fresh cold launch re-arms it.
  *
- * Nothing here touches Telegram state, so a crash is impossible to turn into a data
- * leak; the worst case is a normal calculator that fails to unlock.
+ * Apart from the duress logout, nothing here touches Telegram state, so a crash is
+ * impossible to turn into a data leak; the worst case is a normal calculator that fails
+ * to unlock.
  */
 public class LuminaCalculatorActivity extends Activity {
 
@@ -179,6 +183,10 @@ public class LuminaCalculatorActivity extends Activity {
             proceedIntoApp();
             return;
         }
+
+        // Duress code: log out when a logout mode is on, then compute as usual below so the
+        // display looks like any other "=". A no-op for every other entry.
+        LuminaDuress.onVaultEntry(current);
 
         // Otherwise behave as an ordinary calculator.
         String result = evaluate(current);

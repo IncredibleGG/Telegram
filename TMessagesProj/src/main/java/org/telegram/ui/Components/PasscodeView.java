@@ -67,8 +67,7 @@ import org.telegram.messenger.BotWebViewVibrationEffect;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.FingerprintController;
 import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.LuminaConfig;
-import org.telegram.messenger.LuminaLocale;
+import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -1090,45 +1089,6 @@ public class PasscodeView extends FrameLayout implements NotificationCenter.Noti
         this.delegate = delegate;
     }
 
-    /**
-     * LuminaGram fake-crash duress unlock. Shows a plain, system-style dialog resembling
-     * Android's "App keeps stopping" crash. Its single "Close app" button tears the app down
-     * via {@link #exitApp()}. The dialog is non-cancelable so it looks and behaves like a real
-     * OS crash. Any failure to build/show the dialog still results in the app exiting.
-     */
-    private void showFakeCrash() {
-        Activity activity = AndroidUtilities.findActivity(getContext());
-        Context dialogContext = activity != null ? activity : getContext();
-        if (dialogContext == null) {
-            exitApp();
-            return;
-        }
-        try {
-            android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(dialogContext)
-                    .setTitle(LuminaLocale.getString(R.string.LuminaFakeCrashTitle))
-                    .setCancelable(false)
-                    .setPositiveButton(LuminaLocale.getString(R.string.LuminaFakeCrashCloseApp), (d, w) -> exitApp())
-                    .create();
-            dialog.setCanceledOnTouchOutside(false);
-            dialog.show();
-        } catch (Throwable e) {
-            // If the dialog can't be shown for any reason, still behave like a crash and exit.
-            exitApp();
-        }
-    }
-
-    /** Hard-exit the whole app, mirroring the finishAffinity()+System.exit(0) idiom used elsewhere. */
-    private void exitApp() {
-        try {
-            Activity activity = AndroidUtilities.findActivity(getContext());
-            if (activity != null) {
-                activity.finishAffinity();
-            }
-        } catch (Throwable ignore) {
-        }
-        System.exit(0);
-    }
-
     protected boolean isAppLock() {
         return true;
     }
@@ -1149,28 +1109,20 @@ public class PasscodeView extends FrameLayout implements NotificationCenter.Noti
                 onPasscodeError();
                 return;
             }
-            // LuminaGram fake-crash duress unlock: a SECOND, purely-local code that fakes an
-            // Android "app has stopped" crash and exits, instead of unlocking. Strictly gated —
-            // it only fires when the feature is enabled AND the entered text EXACTLY equals the
-            // (non-empty) configured code. Any other input, including a normal wrong passcode,
-            // falls through to the usual checkPasscode() handling below and behaves normally.
+            // LuminaGram duress code: a SECOND, purely-local code that logs out (current account
+            // or all accounts) and closes the app, or only closes it, instead of unlocking (see
+            // LuminaDuress). Strictly gated: it only fires when the feature is on AND the entered
+            // text EXACTLY equals the (non-empty) configured code AND it is not the real passcode,
+            // so the real passcode always unlocks. Any other input, including a mistyped or
+            // ordinary wrong passcode, falls through to the usual checkPasscode() handling below.
             try {
                 // 13.0 sync: upstream made PasscodeView reusable as a plain confirmation view
                 // (isAppLock() == false); the duress code only ever applies to the real app lock.
-                if (isAppLock() && LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false)) {
-                    String fakeCrashCode = LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, "");
-                    if (fakeCrashCode != null && fakeCrashCode.length() > 0 && fakeCrashCode.equals(password)) {
-                        passwordEditText.setText("");
-                        passwordEditText2.eraseAllCharacters(true);
-                        // Mode "exit": close at once through the same path the fake alert's
-                        // button uses. Default / unset mode keeps the fake "keeps stopping" alert.
-                        if (LuminaConfig.isFakeCrashExitMode()) {
-                            exitApp();
-                        } else {
-                            showFakeCrash();
-                        }
-                        return;
-                    }
+                if (isAppLock() && LuminaDuress.matches(password) && !SharedConfig.checkPasscode(password)) {
+                    passwordEditText.setText("");
+                    passwordEditText2.eraseAllCharacters(true);
+                    LuminaDuress.onPasscodeScreenMatch(AndroidUtilities.findActivity(getContext()));
+                    return;
                 }
             } catch (Throwable e) {
                 // A LuminaGram config error must NEVER block passcode entry (would brick the

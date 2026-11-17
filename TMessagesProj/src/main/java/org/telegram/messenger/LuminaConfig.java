@@ -404,6 +404,14 @@ public class LuminaConfig {
         return preferences.contains(key);
     }
 
+    // Delete a key outright (used to drop retired keys, e.g. the fake-crash era duress flags).
+    public static void remove(String key) {
+        if (editor == null) {
+            return;
+        }
+        editor.remove(key).apply();
+    }
+
     // ---- Public gallery album ----
     // "Save to gallery" exports into a named album under the shared media roots:
     // Pictures/<album>, Movies/<album>, Download/<album>, Music/<album>.
@@ -779,22 +787,9 @@ public class LuminaConfig {
         putString(KEY_MY_LANGUAGES, joinLangSet(parseLangSet(raw)));
     }
 
-    // ---- Fake-crash duress code (LuminaGram) ----
-    // A separate LOCAL code (never the Telegram passcode) that, typed at the app-lock passcode
-    // screen, closes the app instead of unlocking. Read in PasscodeView, edited in
-    // LuminaDisguiseActivity. KEY_FAKE_CRASH_MODE picks what happens: "dialog" (default, also when
-    // the key was never written, so existing users keep the behaviour they tested) shows the fake
-    // "LuminaGram keeps stopping" alert first; "exit" closes the app at once with no alert.
-    public static final String KEY_FAKE_CRASH_ENABLED = "fakeCrashEnabled";
-    public static final String KEY_FAKE_CRASH_CODE = "fakeCrashCode";
-    public static final String KEY_FAKE_CRASH_MODE = "fakeCrashMode";
-    public static final String FAKE_CRASH_MODE_DIALOG = "dialog";
-    public static final String FAKE_CRASH_MODE_EXIT = "exit";
-
-    /** True only when the duress code should close the app with no alert at all. */
-    public static boolean isFakeCrashExitMode() {
-        return FAKE_CRASH_MODE_EXIT.equals(getString(KEY_FAKE_CRASH_MODE, FAKE_CRASH_MODE_DIALOG));
-    }
+    // ---- Duress code (LuminaGram) ----
+    // The former fake-crash duress code now logs out (or just closes the app); its keys, modes
+    // and the legacy-key migration live in LuminaDuress.
 
     // ---- Single-chat lock / private folder (LuminaGram) ----
     // A purely LOCAL, display-only "private folder": dialogIds the user chose to hide from the
@@ -1717,6 +1712,10 @@ public class LuminaConfig {
             }
             org.json.JSONObject entry = data.optJSONObject(key);
             if (entry == null) {
+                continue;
+            }
+            // A duress logout mode is only ever armed through its warning dialog, never by a restore.
+            if (LuminaDuress.blocksImport(key, entry.optString("v", ""))) {
                 continue;
             }
             String t = entry.optString("t", "s");
