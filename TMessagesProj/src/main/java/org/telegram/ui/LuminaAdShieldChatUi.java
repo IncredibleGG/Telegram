@@ -857,6 +857,12 @@ public final class LuminaAdShieldChatUi implements LuminaAdShieldChatSession.Lis
         return null;
     }
 
+    /**
+     * Taps on 「收合」 / 「不是廣告」 in the slim header. The listener never takes the gesture over on DOWN: it
+     * only remembers the hit, forgets it once the finger moves past the touch slop (so a scroll that starts
+     * on the header still scrolls the chat), and claims the gesture on UP inside the pressed area, which
+     * cancels whatever the list or a child was doing with it.
+     */
     private final class Touch implements RecyclerView.OnItemTouchListener {
         private int action;
         private int msgId;
@@ -866,54 +872,58 @@ public final class LuminaAdShieldChatUi implements LuminaAdShieldChatSession.Lis
 
         @Override
         public boolean onInterceptTouchEvent(@NonNull RecyclerView rv, @NonNull MotionEvent e) {
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                action = 0;
-                if (active() != null && rv.getScrollState() == RecyclerView.SCROLL_STATE_IDLE) {
-                    Hit h = hitAt(e.getX(), e.getY());
-                    if (h != null) {
-                        action = h.action;
-                        msgId = h.msgId;
-                        pressedRect.set(h.rect);
-                        downX = e.getX();
-                        downY = e.getY();
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public void onTouchEvent(@NonNull RecyclerView rv, @NonNull MotionEvent e) {
-            if (action == 0) {
-                return;
-            }
             switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_MOVE: {
-                    int slop = ViewConfiguration.get(rv.getContext()).getScaledTouchSlop();
-                    if (Math.abs(e.getX() - downX) > slop || Math.abs(e.getY() - downY) > slop) {
-                        action = 0;
+                case MotionEvent.ACTION_DOWN: {
+                    action = 0;
+                    if (active() != null && rv.getScrollState() == RecyclerView.SCROLL_STATE_IDLE) {
+                        Hit h = hitAt(e.getX(), e.getY());
+                        if (h != null) {
+                            action = h.action;
+                            msgId = h.msgId;
+                            pressedRect.set(h.rect);
+                            downX = e.getX();
+                            downY = e.getY();
+                        }
                     }
-                    break;
+                    return false;
                 }
+                case MotionEvent.ACTION_MOVE: {
+                    if (action != 0) {
+                        int slop = ViewConfiguration.get(rv.getContext()).getScaledTouchSlop();
+                        if (Math.abs(e.getX() - downX) > slop || Math.abs(e.getY() - downY) > slop
+                                || rv.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+                            action = 0;
+                        }
+                    }
+                    return false;
+                }
+                case MotionEvent.ACTION_POINTER_DOWN:
+                case MotionEvent.ACTION_CANCEL:
+                    action = 0;
+                    return false;
                 case MotionEvent.ACTION_UP: {
                     int a = action;
                     action = 0;
-                    if (pressedRect.contains(e.getX(), e.getY())) {
+                    if (a != 0 && pressedRect.contains(e.getX(), e.getY())
+                            && rv.getScrollState() == RecyclerView.SCROLL_STATE_IDLE) {
                         try {
                             rv.playSoundEffect(SoundEffectConstants.CLICK);
                         } catch (Exception ignore) {
                         }
                         performHeader(a, msgId);
+                        return true;    // claims the UP: the list / a child gets CANCEL instead of a click
                     }
-                    break;
+                    return false;
                 }
-                case MotionEvent.ACTION_CANCEL:
-                    action = 0;
-                    break;
                 default:
-                    break;
+                    return false;
             }
+        }
+
+        @Override
+        public void onTouchEvent(@NonNull RecyclerView rv, @NonNull MotionEvent e) {
+            // only reached for the UP claimed above (the gesture is over): nothing left to do
+            action = 0;
         }
 
         @Override

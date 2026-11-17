@@ -88,10 +88,11 @@ final class LuminaAdShieldMapper {
 
     /**
      * Admin / creator roles and the known member handles (loaded admins + group bots). {@code known} is
-     * the SPEC's adminsKnown: the list is loaded and non-empty, or {@code forceKnown} (the caller waited
-     * long enough for an admin-less group).
+     * the SPEC's adminsKnown: the list was actually loaded and is non-empty. There is no time-out fallback:
+     * while the list is unknown every decision stays pending (fail-open, nothing folds), so a real admin
+     * is never mistaken for a member (SPEC §6.9).
      */
-    static Roles roles(int account, TLRPC.Chat chat, TLRPC.ChatFull full, boolean forceKnown) {
+    static Roles roles(int account, TLRPC.Chat chat, TLRPC.ChatFull full) {
         MessagesController mc = MessagesController.getInstance(account);
         Roles r = new Roles();
         TreeMap<Long, String> sorted = new TreeMap<Long, String>();
@@ -107,9 +108,7 @@ final class LuminaAdShieldMapper {
                         sorted.put(uid, role);
                     }
                 }
-                r.known = admins.size() > 0 || forceKnown;
-            } else {
-                r.known = forceKnown;
+                r.known = admins.size() > 0;
             }
         } else if (full != null && full.participants != null && full.participants.participants != null) {
             for (TLRPC.ChatParticipant p : full.participants.participants) {
@@ -119,9 +118,7 @@ final class LuminaAdShieldMapper {
                     sorted.put(p.user_id, LuminaAdShield.ROLE_ADMIN);
                 }
             }
-            r.known = !full.participants.participants.isEmpty() || forceKnown;
-        } else {
-            r.known = forceKnown;
+            r.known = !full.participants.participants.isEmpty();
         }
         long sig = r.known ? 1 : 0;
         for (Map.Entry<Long, String> e : sorted.entrySet()) {

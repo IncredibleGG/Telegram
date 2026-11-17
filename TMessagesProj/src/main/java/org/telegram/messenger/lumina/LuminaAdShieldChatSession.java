@@ -19,10 +19,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The AdShield side of one open group chat (ChatActivity in MODE_DEFAULT, including forum topics and
@@ -33,15 +38,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * pinned messages and admin lists. The UI thread copies plain fields into engine inputs (the keyword
  * filter runs first: what it hides is never observed) and posts them to the engine thread, which observes,
  * applies the similar-image hook, debounces the flush and decides the loaded messages with one {@code now}
- * per batch. The decisions land in a {@link ConcurrentHashMap} that the chat UI reads in O(1); changed ids
- * are reported to the {@link Listener} on the UI thread.
+ * per batch. Live events (new messages, edits) are coalesced on the UI thread, and back-to-back engine
+ * batches publish once. The engine thread only computes decisions; they are applied to the
+ * {@link ConcurrentHashMap} that the chat UI reads in O(1) on the UI thread, together with the display
+ * rules below, and the changed ids are reported to the {@link Listener}.
  *
  * <p>Display rules kept here so the chat UI only asks {@link #getDisplayState}: trial mode never folds;
  * "not an ad" unfolds at once; expanded segments are runtime-only; a message that was shown unfolded in
  * this session never folds afterwards (it folds the next time the chat is opened). Messages that arrive
- * with a history load are still allowed to fold when their first decision comes in (the engine answers a
- * few milliseconds after the load; pending decisions keep that allowance for the opening seconds while the
- * admin list loads).
+ * with a history load may still fold when their decision comes in, but only while they have been on
+ * screen for less than {@link #SHOWN_LOCK_MS} (the engine normally answers within a few milliseconds of
+ * the load). Rows the store already holds are decided as soon as the chat opens, so known ads bind as
+ * fold rows right away.
  *
  * <p>Created by {@link #open}; {@link #close} when the chat goes away. UI-thread object except where noted.
  */
@@ -95,10 +103,18 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     }
 
     private static final int MAX_DECIDE = 800;
+    /** Stored rows (newest message ids first) decided when the chat opens, before any history arrives. */
+    private static final int PRE_DECIDE = 400;
     private static final long OPENING_GRACE_MS = 8000;
-    /** A history batch whose decisions come back later than this no longer folds messages already shown. */
-    private static final long FRESH_MS = 3000;
+    /** A history message bound on screen for this long never folds in this session any more. */
+    private static final long SHOWN_LOCK_MS = 500;
+    /** New messages and edits are collected for this long and observed as one batch. */
+    private static final long LIVE_COALESCE_MS = 300;
+    /** Back-to-back engine batches publish once, but never later than this after the first one waited. */
+    private static final long MAX_DEFER_MS = 1000;
     private static final long[] ADMIN_RECHECK_MS = {2000, 5000, 12000, 30000};
+    /** After the quick rechecks: keep looking for a silently loaded admin list at this pace. */
+    private static final long ADMIN_SLOW_RECHECK_MS = 60000;
     /** A jump target (reply quote, search, link) still unfolds its segment if its decision folds it this late. */
     private static final long JUMP_MS = 15000;
     private static final int[] EMPTY = new int[0];
@@ -107,10 +123,30 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     private static final class Batch {
         int[] grace = EMPTY;        // ids allowed to fold although they may already be bound
         int[] newIds;               // unread incoming ids of a history batch (all-new-folded check)
-        long postedAt;              // SystemClock.elapsedRealtime() when the UI posted it
+
+        /** Two batches published together (never modifies either one). */
+        static Batch merge(Batch a, Batch b) {
+            if (a == null || a == NO_BATCH) {
+                return b;
+            }
+            if (b == null || b == NO_BATCH) {
+                return a;
+            }
+            Batch m = new Batch();
+            m.grace = concat(a.grace, b.grace);
+            m.newIds = a.newIds == null ? b.newIds : b.newIds == null ? a.newIds : concat(a.newIds, b.newIds);
+            return m;
+        }
     }
 
     private static final Batch NO_BATCH = new Batch();
+
+    /** A grace message the chat UI bound as a normal row. */
+    private static final class Shown {
+        long at;                    // SystemClock.elapsedRealtime() of the first bind
+        long album;                 // grouped_id, 0 = none
+        MessageObject mo;           // the bound object (album-aware display state)
+    }
     private static final HashSet<String> allNewNotified = new HashSet<String>();    // UI thread
 
     public final int account;
@@ -140,17 +176,22 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     private final HashSet<Integer> locked = new HashSet<Integer>();
     private final HashSet<Long> lockedAlbums = new HashSet<Long>();
     private final HashSet<Integer> grace = new HashSet<Integer>();
-    private final HashSet<Integer> shownInGrace = new HashSet<Integer>();
-    private final java.util.HashMap<Integer, Long> shownInGraceAlbum = new java.util.HashMap<Integer, Long>();
+    /** Grace ids bound as a normal row (first bind time, album, the bound object). */
+    private final HashMap<Integer, Shown> shownInGrace = new HashMap<Integer, Shown>();
     private final HashSet<Integer> notAdLocal = new HashSet<Integer>();
     private LuminaAdShield.ChatContext ctx;
     private LuminaAdShieldMapper.Roles roles;
     private TLRPC.ChatFull full;
     private Collection<MessageObject> pinned;
+    /** Pin / unpin updates of this session (the loaded MessageObjects keep their old {@code pinned} flag). */
+    private final HashMap<Integer, Boolean> pinOverride = new HashMap<Integer, Boolean>();
+    private boolean ownerPinnedStale;
     private long ctxSignature = Long.MIN_VALUE;
-    private boolean adminsForced;
     private int adminRecheck;
     private Runnable adminRecheckRunnable;
+    private boolean preDecided;
+    private final LinkedHashMap<Integer, MessageObject> pendingLive = new LinkedHashMap<Integer, MessageObject>();
+    private Runnable liveFlush;
     private final int openReadMax;
     private boolean allNewChecked;
     private int[] openingNewIds;
@@ -158,9 +199,17 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     private long jumpTargetAt;
 
     // ---- engine thread ----
+    /** The most recently observed ids (at most MAX_DECIDE, oldest first): re-decided on every publish. */
     private final LinkedHashSet<Integer> tracked = new LinkedHashSet<Integer>();
     private Object engineTarget;
     private int engineEpoch = -1;
+    /** Observed batches whose publish waits for the next engine batch already in the queue. */
+    private LinkedHashSet<Integer> deferredIds;
+    private Batch deferredBatch;
+    private Object deferredTarget;
+    private long deferredSince;
+    /** Observe tasks posted but not started yet (any thread). */
+    private final AtomicInteger queuedObserves = new AtomicInteger();
 
     private LuminaAdShieldChatSession(int account, TLRPC.Chat chat, String chatType, Host host) {
         this.account = account;
@@ -200,6 +249,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         closedFlag = true;
         setObserving(false);
         cancelAdminRecheck();
+        cancelLive();
         LuminaAdShieldManager.removeSession(this);
         listener = null;
     }
@@ -299,7 +349,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     /**
      * The chat UI bound {@code mo} as a normal, visible message row (not folded and not inside an expanded
      * segment). From then on it never folds in this session, unless it came with a history load whose
-     * decision is still outstanding.
+     * decision is still outstanding and it has been on screen for less than {@link #SHOWN_LOCK_MS}.
      */
     public void noteShown(MessageObject mo) {
         if (!active || mo == null || mo.messageOwner == null) {
@@ -310,10 +360,13 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             return;
         }
         if (grace.contains(id)) {
-            shownInGrace.add(id);
-            if (mo.messageOwner.grouped_id != 0) {
-                shownInGraceAlbum.put(id, mo.messageOwner.grouped_id);
+            Shown sh = shownInGrace.get(id);
+            if (sh == null) {
+                shownInGrace.put(id, sh = new Shown());
+                sh.at = SystemClock.elapsedRealtime();
             }
+            sh.mo = mo;
+            sh.album = mo.messageOwner.grouped_id;
             return;
         }
         if (locked.add(id) && mo.messageOwner.grouped_id != 0) {
@@ -525,7 +578,8 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
                 return;
             }
             LuminaAdShieldManager.scheduleFlush(LuminaAdShieldManager.engineAccount(account, userId, false), botChatId);
-            enginePublish(store, c, now, target, NO_BATCH, EMPTY);
+            // the same cluster may fold further back in the loaded history: decide everything again
+            enginePublish(store, c, now, target, NO_BATCH, EMPTY, true);
         });
     }
 
@@ -590,15 +644,15 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             if (full == null) {
                 full = MessagesController.getInstance(account).getChatFull(chatId);
             }
-            pinned = host.getPinnedMessages();
             ctx = null;
             ctxSignature = Long.MIN_VALUE;
-            adminsForced = false;
             adminRecheck = 0;
             cancelAdminRecheck();
             if (isChannelChat() && !MessagesController.getInstance(account).isChannelAdminsLoaded(chatId)) {
                 MessagesController.getInstance(account).loadChannelAdmins(chatId, true);
             }
+            context();
+            maybePreDecide();
             observe(host.getLoadedMessages(), true);
             scheduleAdminRecheck();
             final long activation = activatedAt;
@@ -632,11 +686,12 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         lockedAlbums.clear();
         grace.clear();
         shownInGrace.clear();
-        shownInGraceAlbum.clear();
         notAdLocal.clear();
         allNewChecked = false;
         openingNewIds = null;
         jumpTarget = 0;
+        preDecided = false;
+        cancelLive();
         version++;
     }
 
@@ -649,13 +704,16 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         int[] ids = {NotificationCenter.messagesDidLoad, NotificationCenter.didReceiveNewMessages,
                 NotificationCenter.replaceMessagesObjects, NotificationCenter.messagesDeleted,
                 NotificationCenter.chatInfoDidLoad, NotificationCenter.pinnedInfoDidLoad,
-                NotificationCenter.didLoadChatAdmins};
+                NotificationCenter.didLoadPinnedMessages, NotificationCenter.didLoadChatAdmins};
         for (int id : ids) {
             if (on) {
                 nc.addObserver(this, id);
             } else {
                 nc.removeObserver(this, id);
             }
+        }
+        if (!on) {
+            cancelLive();
         }
     }
 
@@ -682,10 +740,10 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
                 if (args.length > 3 && args[3] instanceof Integer && (Integer) args[3] != 0) {
                     return;
                 }
-                observe((List<MessageObject>) args[1], false);
+                observeLive((List<MessageObject>) args[1]);
             } else if (id == NotificationCenter.replaceMessagesObjects) {
                 if ((Long) args[0] == dialogId) {
-                    observe((List<MessageObject>) args[1], false);
+                    observeLive((List<MessageObject>) args[1]);
                 }
             } else if (id == NotificationCenter.messagesDeleted) {
                 if (args.length > 2 && Boolean.TRUE.equals(args[2])) {
@@ -703,9 +761,18 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
                     contextMaybeChanged();
                 }
             } else if (id == NotificationCenter.pinnedInfoDidLoad) {
-                if ((Long) args[0] == dialogId && args.length > 2 && args[2] instanceof java.util.Map) {
-                    pinned = new ArrayList<MessageObject>(((java.util.Map<Integer, MessageObject>) args[2]).values());
-                    contextMaybeChanged();
+                if ((Long) args[0] == dialogId) {
+                    // ChatActivity swaps in its new pinned map in its own handler: read it after every observer ran
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (active && !closed) {
+                            contextMaybeChanged();
+                        }
+                    });
+                }
+            } else if (id == NotificationCenter.didLoadPinnedMessages) {
+                if ((Long) args[0] == dialogId) {
+                    onPinsChanged(args.length > 1 && args[1] instanceof List ? (List<Integer>) args[1] : null,
+                            args.length > 2 && Boolean.TRUE.equals(args[2]));
                 }
             } else if (id == NotificationCenter.didLoadChatAdmins) {
                 if ((Long) args[0] == chatId) {
@@ -732,7 +799,8 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         if (c == null) {
             return false;
         }
-        LuminaAdShieldMapper.Roles r = LuminaAdShieldMapper.roles(account, c, full, adminsForced);
+        pinned = host.getPinnedMessages();     // ChatActivity replaces its pinned map: never keep an old view
+        LuminaAdShieldMapper.Roles r = LuminaAdShieldMapper.roles(account, c, full);
         long sig = r.signature * 31 + LuminaAdShieldMapper.pinnedSignature(pinned);
         if (full != null) {
             sig = sig * 31 + full.linked_chat_id;
@@ -757,28 +825,109 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         return ctx;
     }
 
-    /** Chat info / pinned / admins changed: re-observe the loaded messages with the new roles. */
-    private void contextMaybeChanged() {
-        if (updateContext()) {
+    /**
+     * Chat info / pinned / admins changed: re-observe the loaded messages with the new roles. Returns true
+     * when the loaded messages were observed again.
+     */
+    private boolean contextMaybeChanged() {
+        boolean changed = updateContext();
+        if (changed) {
             observe(host.getLoadedMessages(), false);
         }
         if (roles != null && roles.known) {
             cancelAdminRecheck();
+            maybePreDecide();
         }
+        return changed;
+    }
+
+    /**
+     * Pin / unpin in this chat (didLoadPinnedMessages: {@code ids} with {@code pin}, or ids == null with
+     * pin == false for "unpin all"). A message pinned now is observed again with pinned=true so it is
+     * recorded as endorsing (SPEC §6.3) and its copies do not fold.
+     */
+    private void onPinsChanged(List<Integer> ids, boolean pin) {
+        final HashSet<Integer> changedIds = new HashSet<Integer>();
+        if (ids != null) {
+            for (Integer id : ids) {
+                if (id != null && id > 0) {
+                    pinOverride.put(id, pin);
+                    changedIds.add(id);
+                }
+            }
+        } else if (!pin) {
+            pinOverride.clear();
+            ownerPinnedStale = true;
+        }
+        final boolean all = ids == null && !pin;
+        // ChatActivity updates its pinned map in its own handler: continue after every observer ran
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!active || closed) {
+                return;
+            }
+            if (contextMaybeChanged() || !all && changedIds.isEmpty()) {
+                return;     // everything loaded was observed again already (or nothing to do)
+            }
+            List<MessageObject> loaded = host.getLoadedMessages();
+            if (loaded == null) {
+                return;
+            }
+            ArrayList<MessageObject> again = new ArrayList<MessageObject>();
+            for (int i = 0, n = loaded.size(); i < n; i++) {
+                MessageObject mo = loaded.get(i);
+                if (mo != null && mo.messageOwner != null && (all ? mo.messageOwner.pinned : changedIds.contains(mo.getId()))) {
+                    again.add(mo);
+                }
+            }
+            observe(again, false);
+        });
+    }
+
+    /** The message's pinned flag as of now (the loaded MessageObject is not updated on pin changes). */
+    private boolean pinnedNow(int id, boolean ownerPinned, HashSet<Integer> pinnedIds) {
+        Boolean o = pinOverride.get(id);
+        if (o != null) {
+            return o;
+        }
+        return pinnedIds.contains(id) || ownerPinned && !ownerPinnedStale;
+    }
+
+    /**
+     * Once per activation, as soon as the admin list is known: decide the store's newest rows so the ads
+     * it already knows bind as fold rows when the history arrives, instead of folding after being shown.
+     */
+    private void maybePreDecide() {
+        if (preDecided || closed || !active || roles == null || !roles.known || ctx == null) {
+            return;
+        }
+        preDecided = true;
+        if (SystemClock.elapsedRealtime() - activatedAt > OPENING_GRACE_MS) {
+            return;     // the opening is over: what is on screen stays, nothing to gain
+        }
+        final LuminaAdShield.ChatContext c = ctx;
+        final ConcurrentHashMap<Integer, LuminaAdShield.Decision> target = decisions;
+        LuminaAdShieldManager.post(() -> {
+            LuminaAdShieldStore store = engineStore(target, true);
+            if (store == null) {
+                return;
+            }
+            int[] ids = newestStoredIds(store, PRE_DECIDE);
+            if (ids.length > 0) {
+                enginePublish(store, c, LuminaAdShieldManager.now(account), target, NO_BATCH, ids, false);
+            }
+        });
     }
 
     private void scheduleAdminRecheck() {
         cancelAdminRecheck();
-        if (closed || !active || adminsForced || roles != null && roles.known) {
+        if (closed || !active || roles != null && roles.known) {
             return;
         }
-        if (adminRecheck >= ADMIN_RECHECK_MS.length) {
-            // an admin-less group (or a list that never loads): stop waiting
-            adminsForced = true;
-            contextMaybeChanged();
-            return;
-        }
-        long delay = ADMIN_RECHECK_MS[adminRecheck] - (adminRecheck > 0 ? ADMIN_RECHECK_MS[adminRecheck - 1] : 0);
+        // No time-out: while the list is unknown decisions stay pending (nothing folds, SPEC §6.9). Network
+        // refreshes of the admin list post no notification, so keep looking at a slow pace.
+        long delay = adminRecheck < ADMIN_RECHECK_MS.length
+                ? ADMIN_RECHECK_MS[adminRecheck] - (adminRecheck > 0 ? ADMIN_RECHECK_MS[adminRecheck - 1] : 0)
+                : ADMIN_SLOW_RECHECK_MS;
         adminRecheck++;
         AndroidUtilities.runOnUIThread(adminRecheckRunnable = () -> {
             adminRecheckRunnable = null;
@@ -801,6 +950,39 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
     // Observation (UI thread -> engine thread)
     // =====================================================================================
 
+    /** New messages and edits: collected for {@link #LIVE_COALESCE_MS} and observed as one batch. */
+    private void observeLive(List<MessageObject> list) {
+        if (!active || closed || list == null || list.isEmpty()) {
+            return;
+        }
+        for (int i = 0, n = list.size(); i < n; i++) {
+            MessageObject mo = list.get(i);
+            if (mo != null && mo.messageOwner != null && mo.getId() > 0 && mo.getDialogId() == dialogId) {
+                pendingLive.remove(mo.getId());     // the newest object wins (an edit replaces it)
+                pendingLive.put(mo.getId(), mo);
+            }
+        }
+        if (liveFlush == null && !pendingLive.isEmpty()) {
+            AndroidUtilities.runOnUIThread(liveFlush = () -> {
+                liveFlush = null;
+                if (pendingLive.isEmpty()) {
+                    return;
+                }
+                ArrayList<MessageObject> batch = new ArrayList<MessageObject>(pendingLive.values());
+                pendingLive.clear();
+                observe(batch, false);
+            }, LIVE_COALESCE_MS);
+        }
+    }
+
+    private void cancelLive() {
+        if (liveFlush != null) {
+            AndroidUtilities.cancelRunOnUIThread(liveFlush);
+            liveFlush = null;
+        }
+        pendingLive.clear();
+    }
+
     private void observe(List<MessageObject> list, boolean history) {
         if (!active || closed || list == null || list.isEmpty()) {
             return;
@@ -811,6 +993,14 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         TLRPC.Chat ch = chat();
         if (c == null || ch == null) {
             return;
+        }
+        HashSet<Integer> pinnedIds = new HashSet<Integer>();
+        if (pinned != null) {
+            for (MessageObject p : pinned) {
+                if (p != null) {
+                    pinnedIds.add(p.getId());
+                }
+            }
         }
         ArrayList<LuminaAdShieldMapper.Item> items = new ArrayList<LuminaAdShieldMapper.Item>();
         ArrayList<Integer> graceIds = new ArrayList<Integer>();
@@ -838,6 +1028,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             if (it == null) {
                 continue;
             }
+            it.input.pinned = pinnedNow(id, it.input.pinned, pinnedIds);
             items.add(it);
             if (history || grace.contains(id)) {
                 grace.add(id);
@@ -865,8 +1056,8 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         final Batch batch = new Batch();
         batch.grace = toArray(graceIds);
         batch.newIds = history ? toArray(newIds) : null;
-        batch.postedAt = SystemClock.elapsedRealtime();
         final ConcurrentHashMap<Integer, LuminaAdShield.Decision> target = decisions;
+        queuedObserves.incrementAndGet();
         LuminaAdShieldManager.post(() -> engineObserve(items, c, target, batch));
         if (ctxChanged) {
             observe(host.getLoadedMessages(), false);
@@ -880,6 +1071,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         final int[] del = new int[ids.size()];
         for (int i = 0; i < del.length; i++) {
             del[i] = ids.get(i);
+            pendingLive.remove(del[i]);
         }
         final LuminaAdShield.ChatContext c = context();
         final ConcurrentHashMap<Integer, LuminaAdShield.Decision> target = decisions;
@@ -896,13 +1088,16 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             }
             for (int id : del) {
                 tracked.remove(id);
+                if (deferredIds != null) {
+                    deferredIds.remove(id);
+                }
             }
             LuminaAdShieldManager.scheduleFlush(LuminaAdShieldManager.engineAccount(account, userId, false), botChatId);
-            enginePublish(store, c, now, target, NO_BATCH, del);
+            enginePublish(store, c, now, target, NO_BATCH, del, false);
         });
     }
 
-    /** Sensitivity / exemptions changed: decide the tracked messages again. */
+    /** Sensitivity / exemptions / chat mode changed: decide every loaded message again. */
     private void republish() {
         final LuminaAdShield.ChatContext c = context();
         final ConcurrentHashMap<Integer, LuminaAdShield.Decision> target = decisions;
@@ -912,7 +1107,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         LuminaAdShieldManager.post(() -> {
             LuminaAdShieldStore store = engineStore(target, false);
             if (store != null) {
-                enginePublish(store, c, LuminaAdShieldManager.now(account), target, NO_BATCH, EMPTY);
+                enginePublish(store, c, LuminaAdShieldManager.now(account), target, NO_BATCH, EMPTY, true);
             }
         });
     }
@@ -933,6 +1128,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         int epoch = LuminaAdShieldManager.epochs[account];
         if (engineTarget != target || engineEpoch != epoch) {
             tracked.clear();
+            clearDeferred();
             engineTarget = target;
             engineEpoch = epoch;
         }
@@ -945,9 +1141,10 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
 
     private void engineObserve(List<LuminaAdShieldMapper.Item> items, LuminaAdShield.ChatContext c,
                                ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, Batch b) {
+        queuedObserves.decrementAndGet();
         LuminaAdShieldStore store = engineStore(target, true);
         if (store == null) {
-            postPublished(target, EMPTY, b);
+            postPublished(target, null, null, takeDeferred(target, b));
             return;
         }
         LuminaAdShieldManager.AccountState st = LuminaAdShieldManager.engineAccount(account, userId, false);
@@ -974,48 +1171,129 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             try {
                 store.observe(in, c, now);
             } catch (LuminaAdShieldStore.ForgottenException e) {
-                postPublished(target, EMPTY, b);
+                postPublished(target, null, null, takeDeferred(target, b));
                 return;
             }
             tracked.remove(in.id);
             tracked.add(in.id);
             batch[bi++] = in.id;
         }
+        trimTracked();
         LuminaAdShieldManager.scheduleFlush(st, botChatId);
         long t1 = SystemClock.elapsedRealtime();
-        enginePublish(store, c, now, target, b, batch);
+        if (queuedObserves.get() > 0 && (deferredBatch == null || t1 - deferredSince < MAX_DEFER_MS)) {
+            // Another batch is already queued (a burst of new messages or history pages): it publishes
+            // this one too, so a flood costs one decide pass instead of one per batch.
+            defer(target, b, batch);
+            LuminaAdShield.log("adshield batch " + items.size() + ": observe " + (t1 - t0) + " ms, publish deferred");
+            return;
+        }
+        enginePublish(store, c, now, target, b, batch, false);
         LuminaAdShield.log("adshield batch " + items.size() + ": observe " + (t1 - t0) + " ms, decide "
                 + (SystemClock.elapsedRealtime() - t1) + " ms, rows " + store.rowCount());
     }
 
-    /** Decides the batch plus the most recently observed messages and publishes changes. Engine thread. */
+    /** Keeps the newest {@link #MAX_DECIDE} observed ids (older ones keep their last published decision). */
+    private void trimTracked() {
+        int extra = tracked.size() - MAX_DECIDE;
+        if (extra > 0) {
+            Iterator<Integer> it = tracked.iterator();
+            while (extra-- > 0 && it.hasNext()) {
+                it.next();
+                it.remove();
+            }
+        }
+    }
+
+    private void defer(Object target, Batch b, int[] ids) {
+        if (deferredBatch != null && deferredTarget != target) {
+            clearDeferred();
+        }
+        if (deferredBatch == null) {
+            deferredBatch = b;
+            deferredIds = new LinkedHashSet<Integer>();
+            deferredTarget = target;
+            deferredSince = SystemClock.elapsedRealtime();
+        } else {
+            deferredBatch = Batch.merge(deferredBatch, b);
+        }
+        for (int id : ids) {
+            deferredIds.add(id);
+        }
+    }
+
+    /** {@code b} plus the deferred bookkeeping of the same target; clears what was deferred. */
+    private Batch takeDeferred(Object target, Batch b) {
+        Batch d = deferredBatch;
+        Object dt = deferredTarget;
+        clearDeferred();
+        return d != null && dt == target ? Batch.merge(d, b) : b;
+    }
+
+    private void clearDeferred() {
+        deferredBatch = null;
+        deferredIds = null;
+        deferredTarget = null;
+        deferredSince = 0;
+    }
+
+    /**
+     * Decides the batch, the deferred batches, the most recently observed messages and, with {@code all},
+     * every message that has a published decision (settings changes and 「不是廣告」 must reach the whole
+     * loaded history). Only computes: the UI thread applies the result. Engine thread.
+     */
     private void enginePublish(LuminaAdShieldStore store, LuminaAdShield.ChatContext c, long now,
-                               ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, Batch b, int[] batch) {
+                               ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, Batch b, int[] batch, boolean all) {
         LuminaAdShield.Settings s = LuminaAdShieldManager.settings();
         LinkedHashSet<Integer> ids = new LinkedHashSet<Integer>();
+        if (deferredIds != null && deferredTarget == target) {
+            ids.addAll(deferredIds);
+        }
+        b = takeDeferred(target, b);
         if (batch != null) {
             for (int id : batch) {
                 ids.add(id);
             }
         }
-        int skip = Math.max(0, tracked.size() - MAX_DECIDE);
-        int i = 0;
-        for (Integer id : tracked) {
-            if (i++ >= skip) {
-                ids.add(id);
-            }
+        ids.addAll(tracked);
+        if (all) {
+            Map<Integer, LuminaAdShield.Decision> published = target;  // Map view: no KeySetView on old Android
+            ids.addAll(published.keySet());
         }
-        ArrayList<Integer> changed = new ArrayList<Integer>();
+        int[] outIds = new int[ids.size()];
+        LuminaAdShield.Decision[] out = new LuminaAdShield.Decision[outIds.length];
+        int k = 0;
         for (Integer id : ids) {
             LuminaAdShield.Decision d = store.decide(id, c, s, now);
             boolean keep = !LuminaAdShield.Decision.UNTRACKED.equals(d.state)
                     && !LuminaAdShield.Decision.INELIGIBLE.equals(d.state);
-            LuminaAdShield.Decision old = keep ? target.put(id, d) : target.remove(id);
-            if (!sameForUi(old, keep ? d : null)) {
-                changed.add(id);
+            outIds[k] = id;
+            out[k] = keep ? d : null;
+            k++;
+        }
+        postPublished(target, outIds, out, b);
+    }
+
+    /** The store's {@code max} newest live message ids, newest first. Engine thread (same package as the store). */
+    private static int[] newestStoredIds(LuminaAdShieldStore store, int max) {
+        int n = store.byMsg.size();
+        if (n == 0 || max <= 0) {
+            return EMPTY;
+        }
+        int[] all = new int[n];
+        int k = 0;
+        for (Integer id : store.byMsg.keySet()) {
+            if (id != null && id > 0 && k < n) {
+                all[k++] = id;
             }
         }
-        postPublished(target, toArray(changed), b);
+        java.util.Arrays.sort(all, 0, k);
+        int m = Math.min(max, k);
+        int[] out = new int[m];
+        for (int i = 0; i < m; i++) {
+            out[i] = all[k - 1 - i];
+        }
+        return out;
     }
 
     private static boolean sameForUi(LuminaAdShield.Decision a, LuminaAdShield.Decision b) {
@@ -1025,45 +1303,96 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         return a.fold == b.fold && a.replyToMe == b.replyToMe && a.occurrence == b.occurrence;
     }
 
-    private void postPublished(ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, int[] changed, Batch b) {
-        AndroidUtilities.runOnUIThread(() -> onPublished(target, changed, b));
+    private void postPublished(ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, int[] ids,
+                               LuminaAdShield.Decision[] ds, Batch b) {
+        AndroidUtilities.runOnUIThread(() -> onPublished(target, ids, ds, b));
     }
 
     // =====================================================================================
     // Back on the UI thread
     // =====================================================================================
 
-    private void onPublished(ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, int[] changed, Batch b) {
+    /**
+     * Applies one engine publish: first the decisions, then the display rules (what has been on screen
+     * stays there, a jump target unfolds), and only then tells the chat UI. All of it runs in one UI-thread
+     * task, so no frame ever draws a decision the rules have not seen.
+     */
+    private void onPublished(ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, int[] ids,
+                             LuminaAdShield.Decision[] ds, Batch b) {
         if (closed || target != decisions) {
             return;     // reset since: a stale result
         }
+        ArrayList<Integer> changed = new ArrayList<Integer>();
+        if (ids != null) {
+            for (int i = 0; i < ids.length; i++) {
+                LuminaAdShield.Decision d = ds[i];
+                LuminaAdShield.Decision old = d != null ? target.put(ids[i], d) : target.remove(ids[i]);
+                if (!sameForUi(old, d)) {
+                    changed.add(ids[i]);
+                }
+            }
+        }
         long t = SystemClock.elapsedRealtime();
         boolean opening = t - activatedAt < OPENING_GRACE_MS;
-        boolean fresh = t - b.postedAt < FRESH_MS;
+        settleShown(t);
         for (int id : b.grace) {
+            if (!grace.contains(id)) {
+                continue;
+            }
             LuminaAdShield.Decision d = target.get(id);
             if (opening && d != null && LuminaAdShield.Decision.PENDING.equals(d.state)) {
                 continue;       // admin list still loading: keep the allowance (endOpening() settles it)
             }
             grace.remove(id);
-            Long album = shownInGraceAlbum.remove(id);
-            if (shownInGrace.remove(id) && (!fresh || d == null || !d.fold)) {
-                locked.add(id); // it was on screen and stays there from now on
-                if (album != null) {
-                    lockedAlbums.add(album);    // the whole album, never half of it
-                }
+            Shown sh = shownInGrace.remove(id);
+            if (sh != null && (d == null || !d.fold)) {
+                lock(id, sh.album);     // on screen and not folding: it stays there from now on
             }
         }
         version++;
-        if (changed != null && changed.length > 0) {
-            notifyChanged(changed);
-            checkJumpTarget();
+        if (!changed.isEmpty()) {
+            checkJumpTarget();          // before the chat UI hears of it: a jump target never shows folded
+            notifyChanged(toArray(changed));
         }
         if (b.newIds != null && b.newIds.length > 0 && openingNewIds == null) {
             openingNewIds = b.newIds;
         }
         if (openingNewIds != null && !allNewChecked) {
             checkAllNewFolded(opening);
+        }
+    }
+
+    /**
+     * A grace message that has been on screen for {@link #SHOWN_LOCK_MS} stays there for the rest of this
+     * session, whatever its batch age or pending state. One that already folded within that time is
+     * settled as folded (it must not pop back later).
+     */
+    private void settleShown(long t) {
+        if (shownInGrace.isEmpty()) {
+            return;
+        }
+        for (Iterator<Map.Entry<Integer, Shown>> it = shownInGrace.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<Integer, Shown> e = it.next();
+            int id = e.getKey();
+            Shown sh = e.getValue();
+            if (t - sh.at >= SHOWN_LOCK_MS) {
+                it.remove();
+                grace.remove(id);
+                lock(id, sh.album);
+            } else {
+                int st = getDisplayState(sh.mo);
+                if (st == DISPLAY_FOLDED || st == DISPLAY_EXPANDED) {
+                    it.remove();
+                    grace.remove(id);
+                }
+            }
+        }
+    }
+
+    private void lock(int id, long album) {
+        locked.add(id);
+        if (album != 0) {
+            lockedAlbums.add(album);    // the whole album, never half of it
         }
     }
 
@@ -1075,6 +1404,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         if (closed || !active) {
             return;
         }
+        settleShown(SystemClock.elapsedRealtime());
         ArrayList<Integer> settle = new ArrayList<Integer>();
         for (Integer id : grace) {
             LuminaAdShield.Decision d = decisions.get(id);
@@ -1084,12 +1414,9 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         }
         for (Integer id : settle) {
             grace.remove(id);
-            Long album = shownInGraceAlbum.remove(id);
-            if (shownInGrace.remove(id)) {
-                locked.add(id);
-                if (album != null) {
-                    lockedAlbums.add(album);
-                }
+            Shown sh = shownInGrace.remove(id);
+            if (sh != null) {
+                lock(id, sh.album);
             }
         }
         if (openingNewIds != null && !allNewChecked) {
@@ -1125,6 +1452,19 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         if (l != null && !closed) {
             l.onAdShieldChanged(ids);
         }
+    }
+
+    private static int[] concat(int[] a, int[] b) {
+        if (a == null || a.length == 0) {
+            return b == null ? EMPTY : b;
+        }
+        if (b == null || b.length == 0) {
+            return a;
+        }
+        int[] r = new int[a.length + b.length];
+        System.arraycopy(a, 0, r, 0, a.length);
+        System.arraycopy(b, 0, r, a.length, b.length);
+        return r;
     }
 
     private static int[] toArray(List<Integer> l) {
