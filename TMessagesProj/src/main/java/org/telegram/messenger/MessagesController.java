@@ -8983,6 +8983,10 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 loadingBlockedPeers = false;
                 getNotificationCenter().postNotificationName(NotificationCenter.blockedUsersDidLoad);
+            } else {
+                // LuminaGram: one failed load (an RPC error) kept the flag set for the whole session, so the
+                // blocked users page and its "unblock all" menu stayed empty: let the next open load again
+                loadingBlockedPeers = false;
             }
         }));
     }
@@ -16181,9 +16185,13 @@ public class MessagesController extends BaseController implements NotificationCe
             TLRPC.TL_auth_logOut req = new TLRPC.TL_auth_logOut();
             getConnectionsManager().sendRequest(req, (response, error) -> {
                 getConnectionsManager().cleanup(false);
+                // LuminaGram duress code: the duress close waits for this answer, and a duress
+                // logout keeps no future-auth token (it could log this device back in without a
+                // login code). Always false for any other logout.
+                final boolean luminaDuress = LuminaDuress.onServerLogoutDone(currentAccount, response, error);
                 AndroidUtilities.runOnUIThread(() -> {
                     if (response instanceof TLRPC.TL_auth_loggedOut) {
-                        if (((TLRPC.TL_auth_loggedOut) response).future_auth_token != null) {
+                        if (!luminaDuress && ((TLRPC.TL_auth_loggedOut) response).future_auth_token != null) {
                             AuthTokensHelper.addLogOutToken((TLRPC.TL_auth_loggedOut) response);
                         }
                     }

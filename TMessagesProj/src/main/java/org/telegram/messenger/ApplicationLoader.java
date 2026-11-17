@@ -262,6 +262,9 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+        // LuminaGram duress code: finish the server side of a duress logout the server never
+        // answered (the process ended first, e.g. offline). Returns at once when none is pending.
+        LuminaDuress.resumePendingServerLogouts();
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();

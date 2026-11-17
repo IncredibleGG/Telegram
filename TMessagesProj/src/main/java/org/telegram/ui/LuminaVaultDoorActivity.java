@@ -16,6 +16,8 @@ import android.widget.TextView;
 
 import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaDecoy;
+import org.telegram.messenger.LuminaDisguiseController;
+import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
 
@@ -34,7 +36,8 @@ import org.telegram.messenger.R;
  *     then proceeds into the real app (see {@link LuminaDecoy#unlockAndProceed}).
  *   - Any other entry routes to the decoy skin selected by {@link LuminaDecoy#resolveDecoySkin}
  *     ("notepad" → {@code org.telegram.ui.LuminaNotepadActivity}, "calculator" →
- *     {@link LuminaCalculatorActivity}) and never reveals the real app.
+ *     {@link LuminaCalculatorActivity}) and never reveals the real app. If that entry is the
+ *     duress code, {@link LuminaDuress#onVaultEntry} logs out first (logout modes only).
  *   - BACK drops to the background (never reveals the real app); a fresh cold launch re-arms it.
  *
  * Fail-open: if building the door UI throws (theme/inflation/OEM quirk) the activity hands
@@ -48,6 +51,9 @@ public class LuminaVaultDoorActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Recents label/icon + window title follow the active camouflage icon, never
+        // "LuminaGram" (no-op while no camouflage icon is active).
+        LuminaDisguiseController.applyTaskIdentity(this);
 
         // FAIL-SAFE: building the door UI must never brick the app. If anything here throws,
         // fail OPEN into the real app rather than leaving the user staring at a crashed screen.
@@ -122,6 +128,9 @@ public class LuminaVaultDoorActivity extends Activity {
             // Correct code — unlock and proceed into the real app.
             LuminaDecoy.unlockAndProceed(this);
         } else {
+            // Duress code: log out when a logout mode is on, then carry on exactly like any
+            // other wrong entry so nothing looks unusual. A no-op for every other entry.
+            LuminaDuress.onVaultEntry(entered);
             // Wrong/blank entry — present the decoy; never reveal the real app.
             launchDecoy();
         }

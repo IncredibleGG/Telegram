@@ -188,11 +188,14 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- LuminaGram disguise: Calculator camouflage launcher (standalone _sa icon) -->
+        <!-- LuminaGram disguise: Calculator camouflage launcher (standalone _sa icon).
+             Targets the neutral LuminaDisguiseLaunchActivity, like the library alias it
+             replaces: an alias always uses its target's theme, and LaunchActivity's flashes
+             the LuminaGram splash logo on Android 12+ (see TMessagesProj/src/main/AndroidManifest.xml). -->
         <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.CalculatorIcon"
-            android:targetActivity="org.telegram.ui.LaunchActivity"
+            android:targetActivity="org.telegram.ui.LuminaDisguiseLaunchActivity"
             android:icon="@mipmap/icon_calc_launcher_sa"
             android:roundIcon="@mipmap/icon_calc_launcher_sa"
             android:label="@string/LuminaDisguiseAppLabel"

@@ -369,16 +369,6 @@ public final class LuminaLocale {
         zhHans.put("LuminaLinkSafetyWarnMixedScript", "此网址混用了不同字母系统的字符,这是常见的仿冒手法。");
         zhHans.put("LuminaLinkSafetyWarnShortener", "这是一个短链接——真实目标地址在你打开前始终隐藏。");
         zhHans.put("LuminaHiddenNotificationText", "新消息");
-        zhHans.put("LuminaSecurityFakeCrashHeader", "假崩溃解锁");
-        zhHans.put("LuminaSecurityFakeCrashEnable", "启用假崩溃解锁");
-        zhHans.put("LuminaSecurityFakeCrashSetCode", "设置假崩溃密码");
-        zhHans.put("LuminaSecurityFakeCrashCodeSet", "已设置");
-        zhHans.put("LuminaSecurityFakeCrashCodeNotSet", "未设置");
-        zhHans.put("LuminaSecurityFakeCrashCodeDialogTitle", "假崩溃密码");
-        zhHans.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "不能与你的密码锁相同");
-        zhHans.put("LuminaSecurityFakeCrashInfo", "开启后，在密码锁屏输入此密码会关闭应用而不是解锁：可直接退出，或先显示伪造的 Android 崩溃提示。此密码独立于你的 Telegram 密码，也独立于伪装计算器锁。");
-        zhHans.put("LuminaFakeCrashTitle", "LuminaGram 一直停止运行");
-        zhHans.put("LuminaFakeCrashCloseApp", "关闭应用");
         zhHans.put("LuminaPrivateNote", "私密备注");
         zhHans.put("LuminaPrivateNoteEmpty", "点按以添加私密备注");
         zhHans.put("LuminaPrivateNoteHint", "备注（仅你可见）");
@@ -973,16 +963,6 @@ zhHans.put("LuminaDigestTitle", "未读摘要");
         zhHant.put("LuminaLinkSafetyWarnMixedScript", "此網址混用了不同字母系統的字元,這是常見的仿冒手法。");
         zhHant.put("LuminaLinkSafetyWarnShortener", "這是一個短連結——真實目標位址在你開啟前始終隱藏。");
         zhHant.put("LuminaHiddenNotificationText", "新訊息");
-        zhHant.put("LuminaSecurityFakeCrashHeader", "假當機解鎖");
-        zhHant.put("LuminaSecurityFakeCrashEnable", "啟用假當機解鎖");
-        zhHant.put("LuminaSecurityFakeCrashSetCode", "設定假當機密碼");
-        zhHant.put("LuminaSecurityFakeCrashCodeSet", "已設定");
-        zhHant.put("LuminaSecurityFakeCrashCodeNotSet", "未設定");
-        zhHant.put("LuminaSecurityFakeCrashCodeDialogTitle", "假當機密碼");
-        zhHant.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "不能與你的密碼鎖相同");
-        zhHant.put("LuminaSecurityFakeCrashInfo", "開啟後，在密碼鎖畫面輸入此密碼會關閉應用程式而不是解鎖：可直接退出，或先顯示偽造的 Android 當機提示。此密碼與你的 Telegram 密碼以及偽裝計算機鎖互相獨立。");
-        zhHant.put("LuminaFakeCrashTitle", "LuminaGram 一直停止運作");
-        zhHant.put("LuminaFakeCrashCloseApp", "關閉應用程式");
         zhHant.put("LuminaPrivateNote", "私密備註");
         zhHant.put("LuminaPrivateNoteEmpty", "點按以新增私密備註");
         zhHant.put("LuminaPrivateNoteHint", "備註（僅你可見）");
@@ -1563,16 +1543,6 @@ zhHant.put("LuminaDigestTitle", "未讀摘要");
         ar.put("LuminaLinkSafetyWarnMixedScript", "يمزج هذا العنوان حروفًا من أبجديات مختلفة، وهي حيلة تقليد شائعة.");
         ar.put("LuminaLinkSafetyWarnShortener", "هذا مختصِر روابط — تبقى الوجهة الحقيقية مخفية حتى تفتحه.");
         ar.put("LuminaHiddenNotificationText", "رسالة جديدة");
-        ar.put("LuminaSecurityFakeCrashHeader", "فتح بإيهام التعطل");
-        ar.put("LuminaSecurityFakeCrashEnable", "تفعيل الفتح بإيهام التعطل");
-        ar.put("LuminaSecurityFakeCrashSetCode", "تعيين رمز إيهام التعطل");
-        ar.put("LuminaSecurityFakeCrashCodeSet", "معيَّن");
-        ar.put("LuminaSecurityFakeCrashCodeNotSet", "غير معيَّن");
-        ar.put("LuminaSecurityFakeCrashCodeDialogTitle", "رمز إيهام التعطل");
-        ar.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "لا يمكن أن يكون مطابقًا لرمز القفل الخاص بك");
-        ar.put("LuminaSecurityFakeCrashInfo", "عند التفعيل، يؤدي إدخال هذا الرمز في شاشة رمز المرور إلى إغلاق التطبيق بدلاً من فتحه، إما فورًا أو بعد إظهار تعطّل وهمي لنظام أندرويد. هذا الرمز منفصل عن رمز مرور تيليجرام وعن قفل الآلة الحاسبة الوهمي.");
-        ar.put("LuminaFakeCrashTitle", "يستمر تطبيق LuminaGram في التوقف");
-        ar.put("LuminaFakeCrashCloseApp", "إغلاق التطبيق");
         ar.put("LuminaPrivateNote", "ملاحظة خاصة");
         ar.put("LuminaPrivateNoteEmpty", "اضغط لإضافة ملاحظة خاصة");
         ar.put("LuminaPrivateNoteHint", "ملاحظة (يمكنك أنت وحدك رؤيتها)");
@@ -2082,16 +2052,6 @@ ar.put("LuminaDigestTitle", "ملخص غير المقروء");
         ru.put("LuminaLinkSafetyWarnMixedScript", "В этом адресе смешаны буквы из разных алфавитов — распространённый приём подделки.");
         ru.put("LuminaLinkSafetyWarnShortener", "Это сокращатель ссылок — настоящий адрес скрыт, пока вы не откроете его.");
         ru.put("LuminaHiddenNotificationText", "Новое сообщение");
-        ru.put("LuminaSecurityFakeCrashHeader", "Разблокировка ложным сбоем");
-        ru.put("LuminaSecurityFakeCrashEnable", "Включить разблокировку ложным сбоем");
-        ru.put("LuminaSecurityFakeCrashSetCode", "Задать код ложного сбоя");
-        ru.put("LuminaSecurityFakeCrashCodeSet", "Задан");
-        ru.put("LuminaSecurityFakeCrashCodeNotSet", "Не задан");
-        ru.put("LuminaSecurityFakeCrashCodeDialogTitle", "Код ложного сбоя");
-        ru.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Код не может совпадать с вашим код-паролем");
-        ru.put("LuminaSecurityFakeCrashInfo", "Когда включено, ввод этого кода на экране блокировки закрывает приложение вместо разблокировки — сразу или после поддельного сообщения о сбое Android. Этот код не связан с вашим паролем Telegram и с ложным замком-калькулятором.");
-        ru.put("LuminaFakeCrashTitle", "Приложение LuminaGram продолжает останавливаться");
-        ru.put("LuminaFakeCrashCloseApp", "Закрыть приложение");
         ru.put("LuminaPrivateNote", "Личная заметка");
         ru.put("LuminaPrivateNoteEmpty", "Нажмите, чтобы добавить личную заметку");
         ru.put("LuminaPrivateNoteHint", "Заметка (видна только вам)");
@@ -2601,16 +2561,6 @@ ru.put("LuminaDigestTitle", "Сводка непрочитанных");
         fa.put("LuminaLinkSafetyWarnMixedScript", "این نشانی حروف الفبای مختلف را با هم می‌آمیزد؛ ترفندی رایج برای تقلید.");
         fa.put("LuminaLinkSafetyWarnShortener", "این یک کوتاه‌کنندهٔ پیوند است — مقصد واقعی تا زمانی که آن را باز نکنید پنهان می‌ماند.");
         fa.put("LuminaHiddenNotificationText", "پیام جدید");
-        fa.put("LuminaSecurityFakeCrashHeader", "بازگشایی با خرابی جعلی");
-        fa.put("LuminaSecurityFakeCrashEnable", "فعال‌سازی بازگشایی با خرابی جعلی");
-        fa.put("LuminaSecurityFakeCrashSetCode", "تنظیم رمز خرابی جعلی");
-        fa.put("LuminaSecurityFakeCrashCodeSet", "تنظیم‌شده");
-        fa.put("LuminaSecurityFakeCrashCodeNotSet", "تنظیم‌نشده");
-        fa.put("LuminaSecurityFakeCrashCodeDialogTitle", "رمز خرابی جعلی");
-        fa.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "این کد نمی‌تواند با رمز عبور شما یکسان باشد");
-        fa.put("LuminaSecurityFakeCrashInfo", "وقتی فعال باشد، وارد کردن این رمز در صفحهٔ رمز عبور به‌جای بازکردن برنامه، آن را می‌بندد؛ یا بلافاصله، یا پس از نمایش یک خرابی جعلی اندروید. این رمز از رمز عبور تلگرام و از قفل ماشین‌حساب تقلبی جدا است.");
-        fa.put("LuminaFakeCrashTitle", "برنامه LuminaGram مدام متوقف می‌شود");
-        fa.put("LuminaFakeCrashCloseApp", "بستن برنامه");
         fa.put("LuminaPrivateNote", "یادداشت خصوصی");
         fa.put("LuminaPrivateNoteEmpty", "برای افزودن یادداشت خصوصی ضربه بزنید");
         fa.put("LuminaPrivateNoteHint", "یادداشت (فقط شما می‌بینید)");
@@ -3120,16 +3070,6 @@ fa.put("LuminaDigestTitle", "خلاصه خوانده‌نشده‌ها");
         tr.put("LuminaLinkSafetyWarnMixedScript", "Bu adres farklı alfabelerden harfleri karıştırıyor; yaygın bir taklit hilesidir.");
         tr.put("LuminaLinkSafetyWarnShortener", "Bu bir bağlantı kısaltıcı — gerçek hedef, siz açana kadar gizli kalır.");
         tr.put("LuminaHiddenNotificationText", "Yeni mesaj");
-        tr.put("LuminaSecurityFakeCrashHeader", "Sahte çökme kilidi");
-        tr.put("LuminaSecurityFakeCrashEnable", "Sahte çökme kilidini etkinleştir");
-        tr.put("LuminaSecurityFakeCrashSetCode", "Sahte çökme kodunu ayarla");
-        tr.put("LuminaSecurityFakeCrashCodeSet", "Ayarlandı");
-        tr.put("LuminaSecurityFakeCrashCodeNotSet", "Ayarlanmadı");
-        tr.put("LuminaSecurityFakeCrashCodeDialogTitle", "Sahte çökme kodu");
-        tr.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Bu kod parola kilidinizle aynı olamaz");
-        tr.put("LuminaSecurityFakeCrashInfo", "Açıkken, bu kodu parola ekranında girmek uygulamanın kilidini açmak yerine uygulamayı kapatır; hemen ya da sahte bir Android çökme uyarısından sonra. Bu kod, Telegram parolanızdan ve sahte hesap makinesi kilidinden ayrıdır.");
-        tr.put("LuminaFakeCrashTitle", "LuminaGram sürekli duruyor");
-        tr.put("LuminaFakeCrashCloseApp", "Uygulamayı kapat");
         tr.put("LuminaPrivateNote", "Özel not");
         tr.put("LuminaPrivateNoteEmpty", "Özel not eklemek için dokunun");
         tr.put("LuminaPrivateNoteHint", "Not (yalnızca siz görebilirsiniz)");
@@ -3639,16 +3579,6 @@ tr.put("LuminaDigestTitle", "Okunmamış özeti");
         es.put("LuminaLinkSafetyWarnMixedScript", "Esta dirección mezcla letras de distintos alfabetos, un truco habitual de imitación.");
         es.put("LuminaLinkSafetyWarnShortener", "Es un acortador de enlaces: el destino real permanece oculto hasta que lo abras.");
         es.put("LuminaHiddenNotificationText", "Mensaje nuevo");
-        es.put("LuminaSecurityFakeCrashHeader", "Desbloqueo con fallo falso");
-        es.put("LuminaSecurityFakeCrashEnable", "Activar desbloqueo con fallo falso");
-        es.put("LuminaSecurityFakeCrashSetCode", "Establecer código de fallo falso");
-        es.put("LuminaSecurityFakeCrashCodeSet", "Establecido");
-        es.put("LuminaSecurityFakeCrashCodeNotSet", "Sin establecer");
-        es.put("LuminaSecurityFakeCrashCodeDialogTitle", "Código de fallo falso");
-        es.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "No puede ser igual que tu código de acceso");
-        es.put("LuminaSecurityFakeCrashInfo", "Cuando está activado, escribir este código en la pantalla de código cierra la aplicación en lugar de desbloquearla, ya sea al instante o tras un aviso falso de fallo de Android. Este código es independiente de tu código de Telegram y del bloqueo con calculadora señuelo.");
-        es.put("LuminaFakeCrashTitle", "LuminaGram se detiene constantemente");
-        es.put("LuminaFakeCrashCloseApp", "Cerrar la aplicación");
         es.put("LuminaPrivateNote", "Nota privada");
         es.put("LuminaPrivateNoteEmpty", "Toca para añadir una nota privada");
         es.put("LuminaPrivateNoteHint", "Nota (solo tú puedes verla)");
@@ -4158,16 +4088,6 @@ es.put("LuminaDigestTitle", "Resumen de no leídos");
         ptBr.put("LuminaLinkSafetyWarnMixedScript", "Este endereço mistura letras de alfabetos diferentes, um truque comum de imitação.");
         ptBr.put("LuminaLinkSafetyWarnShortener", "É um encurtador de links — o destino real fica oculto até você abri-lo.");
         ptBr.put("LuminaHiddenNotificationText", "Nova mensagem");
-        ptBr.put("LuminaSecurityFakeCrashHeader", "Desbloqueio com falha falsa");
-        ptBr.put("LuminaSecurityFakeCrashEnable", "Ativar desbloqueio com falha falsa");
-        ptBr.put("LuminaSecurityFakeCrashSetCode", "Definir código de falha falsa");
-        ptBr.put("LuminaSecurityFakeCrashCodeSet", "Definido");
-        ptBr.put("LuminaSecurityFakeCrashCodeNotSet", "Não definido");
-        ptBr.put("LuminaSecurityFakeCrashCodeDialogTitle", "Código de falha falsa");
-        ptBr.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Não pode ser igual à sua senha de bloqueio");
-        ptBr.put("LuminaSecurityFakeCrashInfo", "Quando ativado, digitar este código na tela de senha fecha o app em vez de desbloquear, na hora ou depois de um aviso falso de falha do Android. Este código é separado da sua senha do Telegram e do bloqueio com calculadora falsa.");
-        ptBr.put("LuminaFakeCrashTitle", "O LuminaGram continua parando");
-        ptBr.put("LuminaFakeCrashCloseApp", "Fechar app");
         ptBr.put("LuminaPrivateNote", "Nota privada");
         ptBr.put("LuminaPrivateNoteEmpty", "Toque para adicionar uma nota privada");
         ptBr.put("LuminaPrivateNoteHint", "Nota (só você pode ver)");
@@ -4677,16 +4597,6 @@ ptBr.put("LuminaDigestTitle", "Resumo de não lidas");
         id.put("LuminaLinkSafetyWarnMixedScript", "Alamat ini mencampur huruf dari abjad berbeda, trik peniruan yang umum.");
         id.put("LuminaLinkSafetyWarnShortener", "Ini pemendek tautan — tujuan asli tetap tersembunyi sampai Anda membukanya.");
         id.put("LuminaHiddenNotificationText", "Pesan baru");
-        id.put("LuminaSecurityFakeCrashHeader", "Buka kunci crash palsu");
-        id.put("LuminaSecurityFakeCrashEnable", "Aktifkan buka kunci crash palsu");
-        id.put("LuminaSecurityFakeCrashSetCode", "Atur kode crash palsu");
-        id.put("LuminaSecurityFakeCrashCodeSet", "Diatur");
-        id.put("LuminaSecurityFakeCrashCodeNotSet", "Belum diatur");
-        id.put("LuminaSecurityFakeCrashCodeDialogTitle", "Kode crash palsu");
-        id.put("LuminaSecurityFakeCrashCodeSameAsPasscode", "Tidak boleh sama dengan kode sandi kunci Anda");
-        id.put("LuminaSecurityFakeCrashInfo", "Saat aktif, memasukkan kode ini di layar sandi akan menutup aplikasi alih-alih membukanya, baik langsung maupun setelah peringatan crash Android palsu. Kode ini terpisah dari sandi Telegram Anda dan dari kunci kalkulator umpan.");
-        id.put("LuminaFakeCrashTitle", "LuminaGram terus berhenti");
-        id.put("LuminaFakeCrashCloseApp", "Tutup aplikasi");
         id.put("LuminaPrivateNote", "Catatan pribadi");
         id.put("LuminaPrivateNoteEmpty", "Ketuk untuk menambah catatan pribadi");
         id.put("LuminaPrivateNoteHint", "Catatan (hanya Anda yang bisa melihat)");
@@ -4882,6 +4792,7 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         loadBatch11();
         loadBatch12();
         loadBatch13();
+        loadBatchDuress();
         loadBatch14();
         loadBatch15();
         loadBatchAdShield3();
@@ -5074,7 +4985,7 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         put3("id", "LuminaLlmDetectModels", "Deteksi model yang tersedia", "LuminaLlmPickModel", "Pilih model", "LuminaLlmModelsEmpty", "Layanan ini tidak mengembalikan model apa pun.", "LuminaLlmModelsNoList", "Layanan ini tidak menyediakan daftar model. Ketik nama model secara manual.", "LuminaLlmErrModelNotFound", "Model “%1$s” tidak ada di layanan ini. Ketuk “Deteksi model yang tersedia” untuk memilih salah satu.", "LuminaLlmErrKey", "Layanan menolak kunci API. Periksa apakah kunci sudah benar.", "LuminaLlmErrQuota", "Kuota habis atau terlalu banyak permintaan. Coba lagi nanti atau periksa paket Anda di layanan.", "LuminaLlmErrServer", "Layanan mengalami kesalahan sementara (HTTP %1$s). Coba lagi nanti.", "LuminaLlmErrEndpoint", "Tidak ada apa pun di alamat ini (HTTP 404). Periksa URL dasar; biasanya diakhiri dengan /v1.", "LuminaLlmErrOther", "Layanan mengembalikan kesalahan (HTTP %1$s).", "LuminaLlmErrNetwork", "Tidak dapat terhubung. Periksa URL dasar dan jaringan Anda.", "LuminaLlmErrRedirect", "Layanan mengalihkan ke alamat lain. Diblokir untuk melindungi kunci API Anda.", "LuminaLlmErrBadUrl", "URL dasar tidak valid.", "LuminaLlmErrBadResponse", "Balasan layanan tidak dapat dibaca. Periksa URL dasar dan model.");
     }
 
-    // Batch 13: fake-crash duress-code mode (dialog / exit) + intro slide 0 Telegram API line.
+    // Batch 13: intro slide 0 Telegram API line (its fake-crash mode strings left with the duress-code rework).
     // 13.2 sync: bot message widgets switch (LuminaSecurityActivity).
     private static void loadBatch14() {
         put3("zh-hans", "LuminaMessageWidgetsHeader", "消息小组件", "LuminaMessageWidgets", "在消息中运行小组件", "LuminaMessageWidgetsInfo", "部分机器人会发送互动小组件，在消息里运行机器人自己的代码（隔离在沙盒中）。关闭后不会运行任何小组件代码，小组件消息只显示占位内容。");
@@ -5086,6 +4997,20 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
         put3("es", "LuminaMessageWidgetsHeader", "Widgets en mensajes", "LuminaMessageWidgets", "Ejecutar widgets en los mensajes", "LuminaMessageWidgetsInfo", "Algunos bots envían widgets interactivos que ejecutan el código del propio bot dentro de un mensaje, aislado en un entorno protegido. Si lo desactivas, no se ejecuta ningún código de widgets y esos mensajes solo muestran un marcador de posición.");
         put3("pt-br", "LuminaMessageWidgetsHeader", "Widgets em mensagens", "LuminaMessageWidgets", "Executar widgets nas mensagens", "LuminaMessageWidgetsInfo", "Alguns bots enviam widgets interativos que executam o código do próprio bot dentro de uma mensagem, isolado em uma sandbox. Se desativar, nenhum código de widget é executado e essas mensagens mostram apenas um espaço reservado.");
         put3("id", "LuminaMessageWidgetsHeader", "Widget pesan", "LuminaMessageWidgets", "Jalankan widget di pesan", "LuminaMessageWidgetsInfo", "Beberapa bot mengirim widget interaktif yang menjalankan kode bot itu sendiri di dalam pesan, terisolasi di sandbox. Jika dimatikan, tidak ada kode widget yang dijalankan sama sekali; pesan widget hanya menampilkan placeholder.");
+    }
+
+    // Duress code (formerly the fake-crash code): logout modes, their warnings, the code dialog
+    // checks and the vault's secret-code check. English is the strings.xml fallback.
+    private static void loadBatchDuress() {
+        put3("zh-hans", "LuminaDuressHeader", "胁迫密码", "LuminaDuressEnable", "启用胁迫密码", "LuminaDuressModeHeader", "输入此密码后", "LuminaDuressModeLogoutCurrent", "退出当前账号", "LuminaDuressModeLogoutCurrentInfo", "触发后只退出当前账号。请先确认这个账号在其他设备上也已登录，才能收到登录验证码。", "LuminaDuressModeLogoutAll", "退出所有账号", "LuminaDuressModeLogoutAllInfo", "触发后这台设备上的所有账号都会退出登录。请确认每个账号的手机号都能收到短信验证码，否则账号将无法再登录。", "LuminaDuressModeExit", "直接退出 App", "LuminaDuressModeExitInfo", "立即关闭 App，不会退出账号。仅在密码锁屏幕有效。", "LuminaDuressSetCode", "设置胁迫密码", "LuminaDuressCodeSet", "已设置", "LuminaDuressCodeNotSet", "未设置", "LuminaDuressCodeDialogTitle", "胁迫密码", "LuminaDuressCodePinHint", "你的密码锁是 4 位数字 PIN 码，这里也请使用 4 位数字，否则在锁屏界面无法输入。", "LuminaDuressCodeSameAsPasscode", "不能与你的密码锁相同", "LuminaDuressCodeSameAsVault", "不能与伪装保险箱的秘密密码相同", "LuminaVaultCodeSameAsDuress", "秘密密码不能与胁迫密码相同", "LuminaDuressInfo", "一组独立的密码，必须不同于密码锁和伪装保险箱的秘密密码。只有完整输入这组密码才会执行上面选择的操作，输错或其他错误密码都按正常处理。可在密码锁屏幕和伪装保险箱中使用（密码门、伪装计算器按「=」、伪装记事本长按标题），在保险箱中触发后画面照常显示伪装 App。", "LuminaDuressLogoutWarning", "退出登录后，这台设备上的私密聊天以及只保存在本机的数据都会消失，无法恢复。", "LuminaDuressConfirmEnable", "我已了解，启用");
+        put3("zh-hant", "LuminaDuressHeader", "脅迫密碼", "LuminaDuressEnable", "啟用脅迫密碼", "LuminaDuressModeHeader", "輸入此密碼後", "LuminaDuressModeLogoutCurrent", "登出目前帳號", "LuminaDuressModeLogoutCurrentInfo", "觸發後只登出目前帳號。請先確認這個帳號在其他裝置也有登入，才收得到登入驗證碼。", "LuminaDuressModeLogoutAll", "登出所有帳號", "LuminaDuressModeLogoutAllInfo", "觸發後這台裝置上的所有帳號都會登出。請確認每個帳號的手機號碼都能收簡訊驗證碼，否則帳號將無法再登入。", "LuminaDuressModeExit", "直接退出 App", "LuminaDuressModeExitInfo", "立即關閉 App，不會登出帳號。只在密碼鎖畫面有效。", "LuminaDuressSetCode", "設定脅迫密碼", "LuminaDuressCodeSet", "已設定", "LuminaDuressCodeNotSet", "未設定", "LuminaDuressCodeDialogTitle", "脅迫密碼", "LuminaDuressCodePinHint", "你的密碼鎖是 4 位數 PIN 碼，這裡也請用 4 位數字，否則在鎖定畫面輸入不了。", "LuminaDuressCodeSameAsPasscode", "不能與你的密碼鎖相同", "LuminaDuressCodeSameAsVault", "不能與偽裝保險箱的秘密密碼相同", "LuminaVaultCodeSameAsDuress", "秘密密碼不能與脅迫密碼相同", "LuminaDuressInfo", "一組獨立的密碼，必須不同於密碼鎖和偽裝保險箱的秘密密碼。只有完整輸入這組密碼才會執行上面選的動作，打錯或其他錯誤密碼都照常處理。可在密碼鎖畫面與偽裝保險箱使用（密碼門、偽裝計算機按「=」、偽裝記事本長按標題），在保險箱觸發後畫面照常顯示偽裝 App。", "LuminaDuressLogoutWarning", "登出後，這台裝置上的秘密聊天以及只存在本機的資料都會消失，無法復原。", "LuminaDuressConfirmEnable", "我了解，啟用");
+        put3("ar", "LuminaDuressHeader", "رمز الإكراه", "LuminaDuressEnable", "تفعيل رمز الإكراه", "LuminaDuressModeHeader", "عند إدخال هذا الرمز", "LuminaDuressModeLogoutCurrent", "تسجيل الخروج من الحساب الحالي", "LuminaDuressModeLogoutCurrentInfo", "عند إدخال هذا الرمز يُسجَّل الخروج من الحساب الحالي فقط. تأكد أولًا من أن هذا الحساب مسجَّل الدخول على جهاز آخر أيضًا، حتى تتمكن من استلام رمز تسجيل الدخول.", "LuminaDuressModeLogoutAll", "تسجيل الخروج من كل الحسابات", "LuminaDuressModeLogoutAllInfo", "عند إدخال هذا الرمز يُسجَّل الخروج من جميع الحسابات على هذا الجهاز. تأكد من أن رقم هاتف كل حساب يستطيع استلام رمز التحقق عبر الرسائل القصيرة، وإلا فلن تتمكن من تسجيل الدخول إلى ذلك الحساب مجددًا.", "LuminaDuressModeExit", "إغلاق التطبيق فقط", "LuminaDuressModeExitInfo", "يغلق التطبيق فورًا دون تسجيل الخروج. يعمل في شاشة رمز القفل.", "LuminaDuressSetCode", "تعيين رمز الإكراه", "LuminaDuressCodeSet", "معيَّن", "LuminaDuressCodeNotSet", "غير معيَّن", "LuminaDuressCodeDialogTitle", "رمز الإكراه", "LuminaDuressCodePinHint", "رمز القفل لديك رقم PIN من 4 أرقام، لذا استخدم 4 أرقام هنا أيضًا، وإلا فلن تتمكن من كتابة الرمز في شاشة القفل.", "LuminaDuressCodeSameAsPasscode", "لا يمكن أن يكون مطابقًا لرمز القفل الخاص بك", "LuminaDuressCodeSameAsVault", "لا يمكن أن يكون مطابقًا للرمز السري لخزنة التمويه", "LuminaVaultCodeSameAsDuress", "لا يمكن أن يكون الرمز السري مطابقًا لرمز الإكراه", "LuminaDuressInfo", "رمز مستقل يجب أن يختلف عن رمز القفل وعن الرمز السري للخزنة. لا يُنفَّذ الإجراء الذي اخترته إلا عند إدخال هذا الرمز بالضبط؛ الأخطاء المطبعية والرموز الخاطئة الأخرى تُعامَل كالمعتاد. يعمل في شاشة رمز القفل وفي خزنة التمويه (باب كلمة المرور، والآلة الحاسبة الوهمية مع «=»، والمفكرة الوهمية بالضغط المطوّل على العنوان)، حيث يبقى التطبيق الوهمي ظاهرًا كالمعتاد.", "LuminaDuressLogoutWarning", "بعد تسجيل الخروج تُحذف المحادثات السرية على هذا الجهاز وكل ما هو محفوظ عليه فقط، ولا يمكن التراجع عن ذلك.", "LuminaDuressConfirmEnable", "فهمت، فعِّل");
+        put3("ru", "LuminaDuressHeader", "Код принуждения", "LuminaDuressEnable", "Включить код принуждения", "LuminaDuressModeHeader", "При вводе этого кода", "LuminaDuressModeLogoutCurrent", "Выйти из текущего аккаунта", "LuminaDuressModeLogoutCurrentInfo", "При вводе этого кода выполняется выход только из текущего аккаунта. Сначала убедитесь, что в этот аккаунт выполнен вход и на другом устройстве, иначе вы не получите код для входа.", "LuminaDuressModeLogoutAll", "Выйти из всех аккаунтов", "LuminaDuressModeLogoutAllInfo", "При вводе этого кода выполняется выход из всех аккаунтов на этом устройстве. Убедитесь, что номер телефона каждого аккаунта может получать SMS с кодом, иначе войти в этот аккаунт снова не получится.", "LuminaDuressModeExit", "Только закрыть приложение", "LuminaDuressModeExitInfo", "Сразу закрывает приложение без выхода из аккаунтов. Работает на экране код-пароля.", "LuminaDuressSetCode", "Задать код принуждения", "LuminaDuressCodeSet", "Задан", "LuminaDuressCodeNotSet", "Не задан", "LuminaDuressCodeDialogTitle", "Код принуждения", "LuminaDuressCodePinHint", "Ваш код-пароль — PIN из 4 цифр, поэтому и здесь используйте 4 цифры, иначе код не получится ввести на экране блокировки.", "LuminaDuressCodeSameAsPasscode", "Код не может совпадать с вашим код-паролем", "LuminaDuressCodeSameAsVault", "Код не может совпадать с секретным кодом сейфа маскировки", "LuminaVaultCodeSameAsDuress", "Секретный код не может совпадать с кодом принуждения", "LuminaDuressInfo", "Отдельный код, который должен отличаться от код-пароля и секретного кода сейфа. Выбранное действие срабатывает только при точном вводе этого кода; опечатки и другие неверные коды обрабатываются как обычно. Работает на экране код-пароля и в сейфе маскировки (дверь с паролем, калькулятор-приманка через «=», заметки-приманка долгим нажатием на заголовок), где приманка остаётся на экране как обычно.", "LuminaDuressLogoutWarning", "После выхода секретные чаты на этом устройстве и всё, что хранится только на нём, будут удалены. Это действие нельзя отменить.", "LuminaDuressConfirmEnable", "Понятно, включить");
+        put3("fa", "LuminaDuressHeader", "رمز اضطرار", "LuminaDuressEnable", "فعال‌سازی رمز اضطرار", "LuminaDuressModeHeader", "پس از وارد کردن این رمز", "LuminaDuressModeLogoutCurrent", "خروج از حساب فعلی", "LuminaDuressModeLogoutCurrentInfo", "با وارد کردن این رمز فقط از حساب فعلی خارج می‌شوید. ابتدا مطمئن شوید این حساب روی دستگاه دیگری هم وارد شده است تا بتوانید کد ورود را دریافت کنید.", "LuminaDuressModeLogoutAll", "خروج از همهٔ حساب‌ها", "LuminaDuressModeLogoutAllInfo", "با وارد کردن این رمز از همهٔ حساب‌های این دستگاه خارج می‌شوید. مطمئن شوید شمارهٔ تلفن هر حساب می‌تواند کد تأیید پیامکی دریافت کند، وگرنه دیگر نمی‌توانید وارد آن حساب شوید.", "LuminaDuressModeExit", "فقط بستن برنامه", "LuminaDuressModeExitInfo", "برنامه را بی‌درنگ و بدون خروج از حساب می‌بندد. در صفحهٔ رمز عبور کار می‌کند.", "LuminaDuressSetCode", "تنظیم رمز اضطرار", "LuminaDuressCodeSet", "تنظیم‌شده", "LuminaDuressCodeNotSet", "تنظیم‌نشده", "LuminaDuressCodeDialogTitle", "رمز اضطرار", "LuminaDuressCodePinHint", "قفل رمز شما یک PIN چهاررقمی است، پس اینجا هم ۴ رقم وارد کنید؛ وگرنه نمی‌توانید این رمز را در صفحهٔ قفل تایپ کنید.", "LuminaDuressCodeSameAsPasscode", "این کد نمی‌تواند با رمز عبور شما یکسان باشد", "LuminaDuressCodeSameAsVault", "این کد نمی‌تواند با کد مخفی گاوصندوق استتار یکسان باشد", "LuminaVaultCodeSameAsDuress", "کد مخفی نمی‌تواند با رمز اضطرار یکسان باشد", "LuminaDuressInfo", "رمزی جداگانه که باید با رمز قفل و کد مخفی گاوصندوق فرق داشته باشد. فقط وارد کردن دقیق همین رمز کاری را که انتخاب کرده‌اید انجام می‌دهد؛ اشتباه تایپی و رمزهای اشتباه دیگر مثل همیشه رفتار می‌کنند. در صفحهٔ رمز عبور و در گاوصندوق استتار کار می‌کند (درِ رمز، ماشین‌حساب ساختگی با «=»، یادداشت ساختگی با فشار طولانی روی عنوان) و در گاوصندوق، برنامهٔ ساختگی مثل همیشه روی صفحه می‌ماند.", "LuminaDuressLogoutWarning", "پس از خروج، گفتگوهای محرمانهٔ این دستگاه و هر چیزی که فقط روی آن ذخیره شده است پاک می‌شود و قابل بازگشت نیست.", "LuminaDuressConfirmEnable", "متوجه شدم، فعال شود");
+        put3("tr", "LuminaDuressHeader", "Zorlama kodu", "LuminaDuressEnable", "Zorlama kodunu etkinleştir", "LuminaDuressModeHeader", "Bu kod girildiğinde", "LuminaDuressModeLogoutCurrent", "Geçerli hesaptan çıkış yap", "LuminaDuressModeLogoutCurrentInfo", "Bu kod girildiğinde yalnızca geçerli hesaptan çıkış yapılır. Önce bu hesabın başka bir cihazda da açık olduğundan emin olun; giriş kodunu ancak böyle alabilirsiniz.", "LuminaDuressModeLogoutAll", "Tüm hesaplardan çıkış yap", "LuminaDuressModeLogoutAllInfo", "Bu kod girildiğinde bu cihazdaki tüm hesaplardan çıkış yapılır. Her hesabın telefon numarasının SMS doğrulama kodu alabildiğinden emin olun; aksi halde o hesaba bir daha giriş yapılamaz.", "LuminaDuressModeExit", "Yalnızca uygulamayı kapat", "LuminaDuressModeExitInfo", "Çıkış yapmadan uygulamayı hemen kapatır. Parola kilidi ekranında çalışır.", "LuminaDuressSetCode", "Zorlama kodunu ayarla", "LuminaDuressCodeSet", "Ayarlandı", "LuminaDuressCodeNotSet", "Ayarlanmadı", "LuminaDuressCodeDialogTitle", "Zorlama kodu", "LuminaDuressCodePinHint", "Parola kilidiniz 4 haneli bir PIN olduğu için burada da 4 rakam kullanın; aksi halde kod kilit ekranında yazılamaz.", "LuminaDuressCodeSameAsPasscode", "Bu kod parola kilidinizle aynı olamaz", "LuminaDuressCodeSameAsVault", "Bu kod gizlenme kasasının gizli koduyla aynı olamaz", "LuminaVaultCodeSameAsDuress", "Gizli kod, zorlama koduyla aynı olamaz", "LuminaDuressInfo", "Parola kilidinizden ve kasanın gizli kodundan farklı olması gereken ayrı bir kod. Seçtiğiniz işlem yalnızca bu kod tam olarak girildiğinde çalışır; yazım hataları ve diğer yanlış kodlar her zamanki gibi işlenir. Parola kilidi ekranında ve gizlenme kasasında (parola kapısı, sahte hesap makinesinde “=”, sahte not defterinde başlığa uzun basma) çalışır; kasada sahte uygulama her zamanki gibi ekranda kalır.", "LuminaDuressLogoutWarning", "Çıkış yapıldığında bu cihazdaki gizli sohbetler ve yalnızca bu cihazda tutulan her şey silinir. Bu işlem geri alınamaz.", "LuminaDuressConfirmEnable", "Anladım, etkinleştir");
+        put3("es", "LuminaDuressHeader", "Código de coacción", "LuminaDuressEnable", "Activar código de coacción", "LuminaDuressModeHeader", "Al escribir este código", "LuminaDuressModeLogoutCurrent", "Cerrar sesión de la cuenta actual", "LuminaDuressModeLogoutCurrentInfo", "Al escribir este código, solo se cierra la sesión de la cuenta actual. Antes, asegúrate de que esta cuenta también tenga la sesión iniciada en otro dispositivo para poder recibir allí el código de inicio de sesión.", "LuminaDuressModeLogoutAll", "Cerrar sesión de todas las cuentas", "LuminaDuressModeLogoutAllInfo", "Al escribir este código, se cierra la sesión de todas las cuentas de este dispositivo. Asegúrate de que el número de teléfono de cada cuenta pueda recibir códigos por SMS; si no, no podrás volver a iniciar sesión en esa cuenta.", "LuminaDuressModeExit", "Solo cerrar la aplicación", "LuminaDuressModeExitInfo", "Cierra la aplicación al instante sin cerrar sesión. Funciona en la pantalla del código de acceso.", "LuminaDuressSetCode", "Establecer código de coacción", "LuminaDuressCodeSet", "Establecido", "LuminaDuressCodeNotSet", "Sin establecer", "LuminaDuressCodeDialogTitle", "Código de coacción", "LuminaDuressCodePinHint", "Tu código de acceso es un PIN de 4 dígitos, así que usa también 4 dígitos aquí; si no, no podrás escribirlo en la pantalla de bloqueo.", "LuminaDuressCodeSameAsPasscode", "No puede ser igual que tu código de acceso", "LuminaDuressCodeSameAsVault", "No puede ser igual que el código secreto de la caja fuerte de disfraz", "LuminaVaultCodeSameAsDuress", "El código secreto no puede ser igual que el código de coacción", "LuminaDuressInfo", "Un código aparte que debe ser distinto de tu código de acceso y del código secreto de la caja fuerte. Solo este código exacto hace lo que elegiste; los errores de escritura y otros códigos incorrectos se tratan como siempre. Funciona en la pantalla del código de acceso y en la caja fuerte de disfraz (puerta con contraseña, calculadora señuelo con «=», notas señuelo manteniendo pulsado el título), donde el señuelo sigue en pantalla como siempre.", "LuminaDuressLogoutWarning", "Al cerrar sesión se borran los chats secretos de este dispositivo y todo lo que solo se guarda en él. No se puede deshacer.", "LuminaDuressConfirmEnable", "Entendido, activar");
+        put3("pt-br", "LuminaDuressHeader", "Código de coação", "LuminaDuressEnable", "Ativar código de coação", "LuminaDuressModeHeader", "Ao digitar este código", "LuminaDuressModeLogoutCurrent", "Sair da conta atual", "LuminaDuressModeLogoutCurrentInfo", "Ao digitar este código, só a conta atual é desconectada. Antes, confira se esta conta também está conectada em outro dispositivo, para poder receber o código de login lá.", "LuminaDuressModeLogoutAll", "Sair de todas as contas", "LuminaDuressModeLogoutAllInfo", "Ao digitar este código, todas as contas deste dispositivo são desconectadas. Confira se o número de telefone de cada conta consegue receber códigos por SMS; caso contrário, não será possível entrar nessa conta de novo.", "LuminaDuressModeExit", "Só fechar o app", "LuminaDuressModeExitInfo", "Fecha o app na hora, sem sair das contas. Funciona na tela da senha de bloqueio.", "LuminaDuressSetCode", "Definir código de coação", "LuminaDuressCodeSet", "Definido", "LuminaDuressCodeNotSet", "Não definido", "LuminaDuressCodeDialogTitle", "Código de coação", "LuminaDuressCodePinHint", "Sua senha de bloqueio é um PIN de 4 dígitos, então use 4 dígitos aqui também; caso contrário, não dá para digitá-lo na tela de bloqueio.", "LuminaDuressCodeSameAsPasscode", "Não pode ser igual à sua senha de bloqueio", "LuminaDuressCodeSameAsVault", "Não pode ser igual ao código secreto do cofre de disfarce", "LuminaVaultCodeSameAsDuress", "O código secreto não pode ser igual ao código de coação", "LuminaDuressInfo", "Um código à parte, que precisa ser diferente da senha de bloqueio e do código secreto do cofre. Só este código exato faz o que você escolheu; erros de digitação e outros códigos errados são tratados como sempre. Funciona na tela da senha de bloqueio e no cofre de disfarce (porta com senha, calculadora isca com “=”, notas isca tocando e segurando o título), onde a isca continua na tela como sempre.", "LuminaDuressLogoutWarning", "Ao sair, os chats secretos deste dispositivo e tudo o que fica salvo só nele são apagados. Isso não pode ser desfeito.", "LuminaDuressConfirmEnable", "Entendi, ativar");
+        put3("id", "LuminaDuressHeader", "Kode paksaan", "LuminaDuressEnable", "Aktifkan kode paksaan", "LuminaDuressModeHeader", "Saat kode ini dimasukkan", "LuminaDuressModeLogoutCurrent", "Keluar dari akun saat ini", "LuminaDuressModeLogoutCurrentInfo", "Saat kode ini dimasukkan, hanya akun saat ini yang dikeluarkan. Pastikan dulu akun ini juga masuk di perangkat lain agar Anda bisa menerima kode masuk di sana.", "LuminaDuressModeLogoutAll", "Keluar dari semua akun", "LuminaDuressModeLogoutAllInfo", "Saat kode ini dimasukkan, semua akun di perangkat ini dikeluarkan. Pastikan nomor telepon setiap akun bisa menerima kode verifikasi SMS; jika tidak, akun itu tidak bisa dimasuki lagi.", "LuminaDuressModeExit", "Hanya tutup aplikasi", "LuminaDuressModeExitInfo", "Langsung menutup aplikasi tanpa keluar dari akun. Berlaku di layar kode sandi.", "LuminaDuressSetCode", "Atur kode paksaan", "LuminaDuressCodeSet", "Diatur", "LuminaDuressCodeNotSet", "Belum diatur", "LuminaDuressCodeDialogTitle", "Kode paksaan", "LuminaDuressCodePinHint", "Kunci kode sandi Anda berupa PIN 4 digit, jadi gunakan juga 4 digit di sini; jika tidak, kode ini tidak bisa diketik di layar kunci.", "LuminaDuressCodeSameAsPasscode", "Tidak boleh sama dengan kode sandi kunci Anda", "LuminaDuressCodeSameAsVault", "Tidak boleh sama dengan kode rahasia brankas penyamaran", "LuminaVaultCodeSameAsDuress", "Kode rahasia tidak boleh sama dengan kode paksaan", "LuminaDuressInfo", "Kode terpisah yang harus berbeda dari kode sandi kunci dan kode rahasia brankas. Hanya kode ini, persis sama, yang menjalankan pilihan Anda; salah ketik dan kode salah lainnya ditangani seperti biasa. Berlaku di layar kode sandi dan di brankas penyamaran (pintu kata sandi, kalkulator umpan dengan “=”, catatan umpan dengan menekan lama judulnya); di brankas, aplikasi umpan tetap tampil seperti biasa.", "LuminaDuressLogoutWarning", "Setelah keluar, obrolan rahasia di perangkat ini dan semua yang hanya tersimpan di perangkat ini akan hilang. Tindakan ini tidak bisa dibatalkan.", "LuminaDuressConfirmEnable", "Saya mengerti, aktifkan");
     }
 
     // LuminaGram 1.6: short link prompt (real address lookup, editable address) and the
@@ -5103,15 +5028,15 @@ id.put("LuminaDigestTitle", "Ringkasan belum dibaca");
     }
 
     private static void loadBatch13() {
-        put3("zh-hans", "LuminaFakeCrashModeHeader", "输入此密码后", "LuminaFakeCrashModeDialog", "显示假崩溃提示", "LuminaFakeCrashModeDialogInfo", "先显示系统风格的「LuminaGram 一直停止运行」提示，点「关闭应用」后关闭。", "LuminaFakeCrashModeExit", "直接退出", "LuminaFakeCrashModeExitInfo", "不显示任何提示，立即关闭应用。", "LuminaIntroPoweredBy", "基于 Telegram API 打造，Telegram 生态的一员。");
-        put3("zh-hant", "LuminaFakeCrashModeHeader", "輸入此密碼後", "LuminaFakeCrashModeDialog", "顯示假當機提示", "LuminaFakeCrashModeDialogInfo", "先顯示系統風格的「LuminaGram 一直停止運作」提示，點「關閉應用程式」後關閉。", "LuminaFakeCrashModeExit", "直接退出", "LuminaFakeCrashModeExitInfo", "不顯示任何提示，立即關閉應用程式。", "LuminaIntroPoweredBy", "以 Telegram API 打造，Telegram 生態的一員。");
-        put3("ar", "LuminaFakeCrashModeHeader", "عند إدخال هذا الرمز", "LuminaFakeCrashModeDialog", "إظهار تنبيه تعطّل وهمي", "LuminaFakeCrashModeDialogInfo", "يُظهر أولًا تنبيهًا بنمط النظام «يستمر تطبيق LuminaGram في التوقف»، ثم يُغلق التطبيق عند النقر على «إغلاق التطبيق».", "LuminaFakeCrashModeExit", "الخروج فورًا", "LuminaFakeCrashModeExitInfo", "يُغلق التطبيق فورًا دون إظهار أي تنبيه.", "LuminaIntroPoweredBy", "مبني على Telegram API، وجزء من منظومة Telegram.");
-        put3("ru", "LuminaFakeCrashModeHeader", "После ввода этого кода", "LuminaFakeCrashModeDialog", "Показать ложный сбой", "LuminaFakeCrashModeDialogInfo", "Сначала показывает системное окно «Приложение LuminaGram продолжает останавливаться»; приложение закроется после нажатия «Закрыть приложение».", "LuminaFakeCrashModeExit", "Сразу выйти", "LuminaFakeCrashModeExitInfo", "Закрывает приложение сразу, без каких-либо сообщений.", "LuminaIntroPoweredBy", "Работает на Telegram API и входит в экосистему Telegram.");
-        put3("fa", "LuminaFakeCrashModeHeader", "پس از وارد کردن این رمز", "LuminaFakeCrashModeDialog", "نمایش هشدار خرابی جعلی", "LuminaFakeCrashModeDialogInfo", "ابتدا هشداری به سبک سیستم با عنوان «برنامه LuminaGram مدام متوقف می‌شود» نشان می‌دهد و با زدن «بستن برنامه» بسته می‌شود.", "LuminaFakeCrashModeExit", "خروج فوری", "LuminaFakeCrashModeExitInfo", "برنامه را بی‌درنگ و بدون نمایش هیچ هشداری می‌بندد.", "LuminaIntroPoweredBy", "ساخته‌شده با Telegram API و بخشی از اکوسیستم Telegram.");
-        put3("tr", "LuminaFakeCrashModeHeader", "Bu kod girildiğinde", "LuminaFakeCrashModeDialog", "Sahte çökme uyarısı göster", "LuminaFakeCrashModeDialogInfo", "Önce sistem tarzında “LuminaGram sürekli duruyor” uyarısı gösterir; “Uygulamayı kapat”a dokunulunca uygulama kapanır.", "LuminaFakeCrashModeExit", "Hemen çık", "LuminaFakeCrashModeExitInfo", "Hiçbir uyarı göstermeden uygulamayı hemen kapatır.", "LuminaIntroPoweredBy", "Telegram API ile geliştirildi, Telegram ekosisteminin bir parçası.");
-        put3("es", "LuminaFakeCrashModeHeader", "Al escribir este código", "LuminaFakeCrashModeDialog", "Mostrar aviso de fallo falso", "LuminaFakeCrashModeDialogInfo", "Primero muestra un aviso con estilo del sistema «LuminaGram se detiene constantemente»; la app se cierra al tocar «Cerrar la aplicación».", "LuminaFakeCrashModeExit", "Salir de inmediato", "LuminaFakeCrashModeExitInfo", "Cierra la app al instante, sin mostrar ningún aviso.", "LuminaIntroPoweredBy", "Basada en la API de Telegram, parte del ecosistema de Telegram.");
-        put3("pt-br", "LuminaFakeCrashModeHeader", "Ao digitar este código", "LuminaFakeCrashModeDialog", "Mostrar aviso de falha falsa", "LuminaFakeCrashModeDialogInfo", "Primeiro mostra um aviso no estilo do sistema “O LuminaGram continua parando”; o app fecha ao tocar em “Fechar app”.", "LuminaFakeCrashModeExit", "Sair na hora", "LuminaFakeCrashModeExitInfo", "Fecha o app na hora, sem mostrar nenhum aviso.", "LuminaIntroPoweredBy", "Baseado na API do Telegram, parte do ecossistema do Telegram.");
-        put3("id", "LuminaFakeCrashModeHeader", "Saat kode ini dimasukkan", "LuminaFakeCrashModeDialog", "Tampilkan peringatan crash palsu", "LuminaFakeCrashModeDialogInfo", "Pertama menampilkan peringatan bergaya sistem “LuminaGram terus berhenti”; aplikasi tertutup saat “Tutup aplikasi” diketuk.", "LuminaFakeCrashModeExit", "Langsung keluar", "LuminaFakeCrashModeExitInfo", "Menutup aplikasi seketika tanpa menampilkan peringatan apa pun.", "LuminaIntroPoweredBy", "Didukung Telegram API, bagian dari ekosistem Telegram.");
+        put3("zh-hans", "LuminaIntroPoweredBy", "基于 Telegram API 打造，Telegram 生态的一员。");
+        put3("zh-hant", "LuminaIntroPoweredBy", "以 Telegram API 打造，Telegram 生態的一員。");
+        put3("ar", "LuminaIntroPoweredBy", "مبني على Telegram API، وجزء من منظومة Telegram.");
+        put3("ru", "LuminaIntroPoweredBy", "Работает на Telegram API и входит в экосистему Telegram.");
+        put3("fa", "LuminaIntroPoweredBy", "ساخته‌شده با Telegram API و بخشی از اکوسیستم Telegram.");
+        put3("tr", "LuminaIntroPoweredBy", "Telegram API ile geliştirildi, Telegram ekosisteminin bir parçası.");
+        put3("es", "LuminaIntroPoweredBy", "Basada en la API de Telegram, parte del ecosistema de Telegram.");
+        put3("pt-br", "LuminaIntroPoweredBy", "Baseado na API do Telegram, parte do ecossistema do Telegram.");
+        put3("id", "LuminaIntroPoweredBy", "Didukung Telegram API, bagian dari ekosistem Telegram.");
     }
 
     public static String getString(@StringRes int res) {

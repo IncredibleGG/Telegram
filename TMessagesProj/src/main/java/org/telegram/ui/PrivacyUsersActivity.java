@@ -85,6 +85,9 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
     private ActionBarMenuItem otherItem;
     private static final int menu_other = org.telegram.messenger.LuminaMenuIds.PRIVACY_USERS_OTHER; // LuminaGram
     private static final int unblock_all = org.telegram.messenger.LuminaMenuIds.PRIVACY_USERS_UNBLOCK_ALL; // LuminaGram
+    // LuminaGram: "unblock all" goes over every page of the server's list, not only the rows loaded so far
+    private final HashSet<Long> unblockAllAsked = new HashSet<>();
+    private boolean unblockAllAwaitingReload;
 
     public interface PrivacyActivityDelegate {
         void didUpdateUserList(ArrayList<Long> ids, boolean added);
@@ -116,6 +119,13 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
         NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.updateInterfaces);
         if (currentType == TYPE_BLOCKED) {
             NotificationCenter.getInstance(currentAccount).addWeakObserver(this, NotificationCenter.blockedUsersDidLoad);
+            // LuminaGram: the rows and the "unblock all" menu show the list MessagesController has loaded. Opened by
+            // tg://settings/privacy/blocked, or with users the server still blocks after an earlier page was cleared,
+            // nothing is loaded and nobody did load it: load the first page here (a load in progress is not repeated).
+            final MessagesController messagesController = getMessagesController();
+            if (messagesController.blockePeers.size() == 0 && messagesController.totalBlockedCount != 0) {
+                messagesController.getBlockedPeers(true);
+            }
         }
         return true;
     }
@@ -175,9 +185,10 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
         if (currentType == TYPE_BLOCKED) {
             // LuminaGram (13.2 sync): this screen now uses the upstream simple (glass) action bar,
             // where actionBar is null -- the menu must hang off simpleActionBar.
+            // Shown whenever at least one blocked user is listed: updateRows() (end of createView) sets it.
             otherItem = simpleActionBar.createMenu().addItem(menu_other, R.drawable.ic_ab_other);
+            otherItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
             otherItem.addSubItem(unblock_all, R.drawable.msg_block2, LuminaLocale.getString(R.string.LuminaUnblockAll));
-            updateMenuVisibility();
         }
 
         fragmentView = new FrameLayout(context);
@@ -335,8 +346,9 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
             .show();
     }
 
+    /** LuminaGram: the overflow button with "unblock all" is there while at least one blocked user is listed. */
     private void updateMenuVisibility() {
-        if (otherItem == null) {
+        if (otherItem == null || currentType != TYPE_BLOCKED) {
             return;
         }
         otherItem.setVisibility(getMessagesController().blockePeers.size() > 0 ? View.VISIBLE : View.GONE);
@@ -354,19 +366,46 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
                 LuminaLocale.getString(R.string.LuminaUnblockAllAlert),
                 LuminaLocale.getString(R.string.LuminaUnblockAll),
                 () -> {
-                    int count = getMessagesController().blockePeers.size();
-                    ArrayList<Long> ids = new ArrayList<>(count);
-                    for (int a = 0; a < count; a++) {
-                        ids.add(getMessagesController().blockePeers.keyAt(a));
-                    }
-                    for (int a = 0; a < ids.size(); a++) {
-                        getMessagesController().unblockPeer(ids.get(a));
-                    }
-                    updateRows();
-                    updateMenuVisibility();
+                    unblockAllAsked.clear();
+                    unblockAllAwaitingReload = false;
+                    unblockLoadedPeers();
                 }, null).create();
         alert.show();
         alert.redPositive();
+    }
+
+    /**
+     * LuminaGram: unblocks every listed peer not asked yet in this run. The list holds one page of the server's list
+     * (20, more while scrolling): when the server has more, the first page is loaded again once every request of this
+     * page is answered, and blockedUsersDidLoad goes on with it. A peer whose unblock failed (e.g. FLOOD_WAIT) comes
+     * back in that page, is not asked again and stays listed, which also ends the run.
+     */
+    private void unblockLoadedPeers() {
+        final MessagesController messagesController = getMessagesController();
+        final boolean morePages = !messagesController.blockedEndReached;
+        final ArrayList<Long> ids = new ArrayList<>();
+        for (int a = 0, N = messagesController.blockePeers.size(); a < N; a++) {
+            final long id = messagesController.blockePeers.keyAt(a);
+            // unblockPeer() drops a peer it does not know without an answer: it stays listed, as before
+            final boolean known = id > 0 ? messagesController.getUser(id) != null : messagesController.getChat(-id) != null;
+            if (known && unblockAllAsked.add(id)) {
+                ids.add(id);
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        final int[] unanswered = {ids.size()};
+        final Runnable onAnswered = () -> {
+            if (--unanswered[0] == 0 && morePages && !isFinished) {
+                unblockAllAwaitingReload = true;
+                messagesController.getBlockedPeers(true);
+            }
+        };
+        for (int a = 0; a < ids.size(); a++) {
+            messagesController.unblockPeer(ids.get(a), onAnswered);
+        }
+        updateRows();
     }
 
     private void updateRows() {
@@ -411,6 +450,7 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
         if (listViewAdapter != null) {
             listViewAdapter.notifyDataSetChanged();
         }
+        updateMenuVisibility(); // LuminaGram: the overflow button follows the rows, whatever changed them
     }
 
     @Override
@@ -423,7 +463,11 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
         } else if (id == NotificationCenter.blockedUsersDidLoad) {
             emptyView.showTextView();
             updateRows();
-            updateMenuVisibility();
+            // LuminaGram: the next page of "unblock all" (posts of the unblock calls arrive while it is still loading)
+            if (unblockAllAwaitingReload && !getMessagesController().loadingBlockedPeers && !isFinished) {
+                unblockAllAwaitingReload = false;
+                unblockLoadedPeers();
+            }
         }
     }
 
@@ -446,6 +490,7 @@ public class PrivacyUsersActivity extends BaseFragment implements NotificationCe
         if (listViewAdapter != null) {
             listViewAdapter.notifyDataSetChanged();
         }
+        updateMenuVisibility(); // LuminaGram
     }
 
     private class ListAdapter extends RecyclerListView.SelectionAdapter {

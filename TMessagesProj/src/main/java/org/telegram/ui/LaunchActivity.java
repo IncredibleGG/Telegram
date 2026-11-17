@@ -496,7 +496,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setTheme(R.style.Theme_TMessages);
         try {
-            setTaskDescription(new ActivityManager.TaskDescription(null, null, Theme.getColor(Theme.key_actionBarDefault) | 0xff000000));
+            // LuminaGram: same TaskDescription as before; while a camouflage icon is active it
+            // also carries that icon's label + icon so Recents never shows LuminaGram.
+            setTaskDescription(org.telegram.messenger.LuminaDisguiseController.taskDescription(this, Theme.getColor(Theme.key_actionBarDefault) | 0xff000000));
         } catch (Throwable ignore) {
 
         }
@@ -7069,6 +7071,61 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     private boolean isStarted;
 
     @Override
+    protected void onRestart() {
+        super.onRestart();
+        // LuminaGram: coming back from the background with the vault re-armed (relock() in
+        // onStop / onUserLeaveHint). onResume diverts to the door / decoy and finishes this
+        // instance, but onStart makes the window visible again first, so it could draw a frame
+        // of the real chat list on the way. Cover the window now, before it can draw anything;
+        // onResume removes the cover again whenever it does not divert. The gate itself, and
+        // everything that runs before it (onNewIntent, onStart, activity results), is unchanged.
+        try {
+            if (!luminaDecoyFinished && org.telegram.messenger.LuminaDecoy.shouldGate(this)) {
+                setLuminaGateCover(true);
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    // LuminaGram: true while the opaque vault-gate cover is drawn over this window.
+    private boolean luminaGateCovered;
+    private Drawable luminaGateCoverPrevForeground;
+
+    /**
+     * LuminaGram: draw (or remove) an opaque cover over the whole window. Used only while this
+     * instance is about to divert to the vault door / decoy, so the real UI is never drawn on
+     * the way there. White, like the door and the decoys. Never throws.
+     */
+    private void setLuminaGateCover(boolean cover) {
+        if (cover == luminaGateCovered) {
+            return;
+        }
+        try {
+            View decor = getWindow() != null ? getWindow().peekDecorView() : null;
+            if (decor == null) {
+                return;
+            }
+            if (cover) {
+                luminaGateCoverPrevForeground = decor.getForeground();
+                decor.setForeground(new ColorDrawable(0xFFFFFFFF));
+            } else {
+                decor.setForeground(luminaGateCoverPrevForeground);
+                luminaGateCoverPrevForeground = null;
+            }
+            luminaGateCovered = cover;
+        } catch (Throwable ignore) {}
+    }
+
+    /**
+     * LuminaGram: re-publish this task's Recents label + icon (the disguise settings call this
+     * after switching the launcher identity). Same colour as the onCreate TaskDescription.
+     */
+    public void refreshLuminaTaskIdentity() {
+        try {
+            setTaskDescription(org.telegram.messenger.LuminaDisguiseController.taskDescription(this, Theme.getColor(Theme.key_actionBarDefault) | 0xff000000));
+        } catch (Throwable ignore) {}
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
         isStarted = true;
@@ -7369,12 +7426,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         // Re-check here so the disguise/vault re-arms on EVERY entry, not just cold start.
         try {
             if (!luminaDecoyFinished && org.telegram.messenger.LuminaDecoy.shouldGate(this)) {
+                // Cover first: this instance is going away, nothing of it should be drawn.
+                setLuminaGateCover(true);
                 if (startLuminaDecoy()) {
                     finish();
                     return;
                 }
             }
         } catch (Throwable ignore) {}
+        // Not diverting (unlocked, vault off, or fail-open): drop the onRestart cover, if any.
+        setLuminaGateCover(false);
+        // Vault armed -> keep the real UI out of the Recents screenshot (Android 13+).
+        org.telegram.messenger.LuminaDecoy.applyRecentsPrivacy(this);
         WidgetMedia.onAppPaused(false);
         isResumed = true;
         PipCoordinator.getInstance().onActivityResume(this);
@@ -7775,7 +7838,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             Boolean nightTheme = (Boolean) args[0];
             if (!nightTheme) {
                 try {
-                    setTaskDescription(new ActivityManager.TaskDescription(null, null, Theme.getColor(Theme.key_actionBarDefault) | 0xff000000));
+                    // LuminaGram: keeps the camouflage label + icon while a disguise is active.
+                    setTaskDescription(org.telegram.messenger.LuminaDisguiseController.taskDescription(this, Theme.getColor(Theme.key_actionBarDefault) | 0xff000000));
                 } catch (Exception ignore) {
 
                 }

@@ -1,16 +1,20 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LuminaConfig;
+import org.telegram.messenger.LuminaDecoy;
 import org.telegram.messenger.LuminaDisguiseController;
+import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -32,10 +36,13 @@ import java.util.ArrayList;
  * Mirrors {@link LuminaAppearanceActivity} / {@link LuminaSecurityActivity}'s
  * UItem / UniversalRecyclerView pattern. Three sections:
  *
- *  0. Fake-crash duress code (top of the page; moved here from LuminaSecurityActivity with the
- *     same {@link LuminaConfig} keys, so existing settings carry over): an enable switch, the
- *     mode ({@code fakeCrashMode}: show the fake "keeps stopping" alert, the default, or exit at
- *     once) and the code itself. PasscodeView reads all three.
+ *  0. Duress code (top of the page; formerly the fake-crash code): an enable switch, the mode
+ *     (log out the current account / log out all accounts / only close the app) and the code
+ *     itself, all stored through {@link LuminaDuress}. Choosing a logout mode always goes
+ *     through a warning dialog that has to be confirmed; the switch itself only ever turns on
+ *     the non-destructive "close the app" mode. The code must differ from the Telegram
+ *     passcode and from the vault's secret code (checked in both code dialogs). PasscodeView,
+ *     the vault password door and both decoys read it.
  *
  *  1. App disguise: a master switch ({@code disguiseEnabled}) plus selectable preset
  *     rows (Default / Calculator / Notes / Clock). Picking a preset stores
@@ -82,10 +89,11 @@ public class LuminaDisguiseActivity extends BaseFragment {
     private static final int ID_VAULT_SKIN_NOTEPAD = 9;
     private static final int ID_VAULT_SKIN_CALCULATOR = 10;
     private static final int ID_VAULT_SET_CODE = 11;
-    private static final int ID_FAKECRASH_ENABLED = 20;
-    private static final int ID_FAKECRASH_MODE_DIALOG = 21;
-    private static final int ID_FAKECRASH_MODE_EXIT = 22;
-    private static final int ID_FAKECRASH_SET_CODE = 23;
+    private static final int ID_DURESS_ENABLED = 20;
+    private static final int ID_DURESS_MODE_LOGOUT_CURRENT = 21;
+    private static final int ID_DURESS_MODE_EXIT = 22;
+    private static final int ID_DURESS_SET_CODE = 23;
+    private static final int ID_DURESS_MODE_LOGOUT_ALL = 24;
 
     private static final String KEY_DISGUISE_ENABLED = LuminaDisguiseController.KEY_ENABLED;
     private static final String KEY_DISGUISE_PRESET = LuminaDisguiseController.KEY_PRESET;
@@ -139,7 +147,7 @@ public class LuminaDisguiseActivity extends BaseFragment {
     }
 
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
-        fillFakeCrashItems(items);
+        fillDuressItems(items);
 
         boolean enabled = LuminaConfig.getBoolean(KEY_DISGUISE_ENABLED, false);
 
@@ -196,38 +204,75 @@ public class LuminaDisguiseActivity extends BaseFragment {
     }
 
     /**
-     * Fake-crash duress code, first section of the page. The mode radios and the code row only
-     * show while the switch is on (same pattern as the vault below). Mode rows use asRadio2 so
-     * each choice carries its own one-line explanation.
+     * Duress code, first section of the page. The mode radios and the code row only show while
+     * the switch is on (same pattern as the vault below). Mode rows use asRadio2 so each choice
+     * carries its own explanation; for the two logout modes that explanation IS the warning, so
+     * it stays visible next to the choice. While a logout mode is active the footer adds the
+     * general warning that this device's secret chats are lost.
      */
-    private void fillFakeCrashItems(ArrayList<UItem> items) {
-        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashHeader)));
-        boolean fakeCrashEnabled = LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false);
-        items.add(UItem.asSwitch(ID_FAKECRASH_ENABLED, LuminaLocale.getString(R.string.LuminaSecurityFakeCrashEnable))
-                .setChecked(fakeCrashEnabled));
-        if (fakeCrashEnabled) {
-            boolean exitMode = LuminaConfig.isFakeCrashExitMode();
-            items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaFakeCrashModeHeader)));
-            items.add(UItem.asRadio2(ID_FAKECRASH_MODE_DIALOG,
-                    LuminaLocale.getString(R.string.LuminaFakeCrashModeDialog),
-                    LuminaLocale.getString(R.string.LuminaFakeCrashModeDialogInfo))
-                    .setChecked(!exitMode));
-            items.add(UItem.asRadio2(ID_FAKECRASH_MODE_EXIT,
-                    LuminaLocale.getString(R.string.LuminaFakeCrashModeExit),
-                    LuminaLocale.getString(R.string.LuminaFakeCrashModeExitInfo))
-                    .setChecked(exitMode));
-            items.add(UItem.asButton(ID_FAKECRASH_SET_CODE,
-                    LuminaLocale.getString(R.string.LuminaSecurityFakeCrashSetCode), fakeCrashCodeValueText()));
+    private void fillDuressItems(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaDuressHeader)));
+        final String mode = LuminaDuress.getMode();
+        final boolean enabled = !LuminaDuress.MODE_OFF.equals(mode);
+        items.add(UItem.asSwitch(ID_DURESS_ENABLED, LuminaLocale.getString(R.string.LuminaDuressEnable))
+                .setChecked(enabled));
+        if (enabled) {
+            items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaDuressModeHeader)));
+            items.add(UItem.asRadio2(ID_DURESS_MODE_LOGOUT_CURRENT,
+                    LuminaLocale.getString(R.string.LuminaDuressModeLogoutCurrent),
+                    LuminaLocale.getString(R.string.LuminaDuressModeLogoutCurrentInfo))
+                    .setChecked(LuminaDuress.MODE_LOGOUT_CURRENT.equals(mode)));
+            items.add(UItem.asRadio2(ID_DURESS_MODE_LOGOUT_ALL,
+                    LuminaLocale.getString(R.string.LuminaDuressModeLogoutAll),
+                    LuminaLocale.getString(R.string.LuminaDuressModeLogoutAllInfo))
+                    .setChecked(LuminaDuress.MODE_LOGOUT_ALL.equals(mode)));
+            items.add(UItem.asRadio2(ID_DURESS_MODE_EXIT,
+                    LuminaLocale.getString(R.string.LuminaDuressModeExit),
+                    LuminaLocale.getString(R.string.LuminaDuressModeExitInfo))
+                    .setChecked(LuminaDuress.MODE_EXIT.equals(mode)));
+            items.add(UItem.asButton(ID_DURESS_SET_CODE,
+                    LuminaLocale.getString(R.string.LuminaDuressSetCode), duressCodeValueText()));
         }
-        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashInfo)));
+        CharSequence info = LuminaLocale.getString(R.string.LuminaDuressInfo);
+        if (LuminaDuress.isLogoutMode(mode)) {
+            info = info + "\n\n" + LuminaLocale.getString(R.string.LuminaDuressLogoutWarning);
+        }
+        // The passcode or the vault's secret code may have been set to the duress code after it
+        // was saved; the duress code then does nothing. Say so while the feature is on.
+        final int clash = enabled ? LuminaDuress.clashOf(LuminaDuress.getCode()) : LuminaDuress.CLASH_NONE;
+        if (clash != LuminaDuress.CLASH_NONE) {
+            info = info + "\n\n" + LuminaLocale.getString(R.string.LuminaDuressCodeDialogTitle) + ": "
+                    + LuminaLocale.getString(clashMessage(clash));
+        }
+        items.add(UItem.asShadow(info));
     }
 
-    private CharSequence fakeCrashCodeValueText() {
-        String code = LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, "");
-        boolean set = code != null && code.length() > 0;
+    private static int clashMessage(int clash) {
+        return clash == LuminaDuress.CLASH_PASSCODE
+                ? R.string.LuminaDuressCodeSameAsPasscode
+                : R.string.LuminaDuressCodeSameAsVault;
+    }
+
+    /**
+     * Before arming a mode: if the stored duress code is the passcode or the vault's secret
+     * code (set to it later, or a code kept from the fake-crash era), open the code dialog with
+     * that reason instead; {@code then} runs once a valid code is saved. Returns true when it
+     * did so, false when there is no clash and the caller can go ahead.
+     */
+    private boolean fixDuressCodeClash(Runnable then) {
+        final int clash = LuminaDuress.clashOf(LuminaDuress.getCode());
+        if (clash == LuminaDuress.CLASH_NONE) {
+            return false;
+        }
+        showDuressCodeDialog(clashMessage(clash), then);
+        return true;
+    }
+
+    private CharSequence duressCodeValueText() {
+        boolean set = LuminaDuress.getCode().length() > 0;
         return LuminaLocale.getString(set
-                ? R.string.LuminaSecurityFakeCrashCodeSet
-                : R.string.LuminaSecurityFakeCrashCodeNotSet);
+                ? R.string.LuminaDuressCodeSet
+                : R.string.LuminaDuressCodeNotSet);
     }
 
     /**
@@ -282,21 +327,35 @@ public class LuminaDisguiseActivity extends BaseFragment {
 
     private void onClick(UItem item, View view, int position, float x, float y) {
         switch (item.id) {
-            case ID_FAKECRASH_ENABLED:
-                LuminaConfig.putBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED,
-                        !LuminaConfig.getBoolean(LuminaConfig.KEY_FAKE_CRASH_ENABLED, false));
+            case ID_DURESS_ENABLED:
+                // Turning the switch on only ever selects the non-destructive "close the app"
+                // mode; a logout mode needs its own confirmed warning (confirmDuressLogoutMode).
+                // A stored code that clashes with the passcode / vault code is fixed first.
+                if (LuminaDuress.isEnabled()) {
+                    LuminaDuress.setMode(LuminaDuress.MODE_OFF);
+                    update();
+                } else if (!fixDuressCodeClash(() -> {
+                    if (!LuminaDuress.isEnabled()) {
+                        LuminaDuress.setMode(LuminaDuress.MODE_EXIT);
+                    }
+                    update();
+                })) {
+                    LuminaDuress.setMode(LuminaDuress.MODE_EXIT);
+                    update();
+                }
+                break;
+            case ID_DURESS_MODE_LOGOUT_CURRENT:
+                confirmDuressLogoutMode(LuminaDuress.MODE_LOGOUT_CURRENT);
+                break;
+            case ID_DURESS_MODE_LOGOUT_ALL:
+                confirmDuressLogoutMode(LuminaDuress.MODE_LOGOUT_ALL);
+                break;
+            case ID_DURESS_MODE_EXIT:
+                LuminaDuress.setMode(LuminaDuress.MODE_EXIT);
                 update();
                 break;
-            case ID_FAKECRASH_MODE_DIALOG:
-                LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_MODE, LuminaConfig.FAKE_CRASH_MODE_DIALOG);
-                update();
-                break;
-            case ID_FAKECRASH_MODE_EXIT:
-                LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_MODE, LuminaConfig.FAKE_CRASH_MODE_EXIT);
-                update();
-                break;
-            case ID_FAKECRASH_SET_CODE:
-                showFakeCrashCodeDialog();
+            case ID_DURESS_SET_CODE:
+                showDuressCodeDialog();
                 break;
             case ID_DISGUISE_ENABLED: {
                 boolean enable = !LuminaConfig.getBoolean(KEY_DISGUISE_ENABLED, false);
@@ -388,6 +447,9 @@ public class LuminaDisguiseActivity extends BaseFragment {
         if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
+        // Every setting change on this page ends here: arm / disarm the vault's Recents privacy
+        // right away instead of on the next resume (Android 13+; see LuminaDecoy).
+        LuminaDecoy.applyRecentsPrivacy(getParentActivity());
     }
 
     /** Pick the vault mode. Any vault change migrates a legacy user and turns the vault on. */
@@ -494,11 +556,70 @@ public class LuminaDisguiseActivity extends BaseFragment {
     }
 
     /**
-     * Prompt for the fake-crash duress code (moved verbatim from LuminaSecurityActivity). Stored
-     * in plaintext under {@code fakeCrashCode} via {@link LuminaConfig}; this is a SEPARATE local
-     * code, never the Telegram passcode.
+     * Pick a logout mode only after the user confirmed its warning: the mode's own warning
+     * (the same text shown under its radio) plus the general line that this device's secret
+     * chats are lost. Cancel leaves the current mode untouched. Re-picking the active mode is
+     * a no-op.
      */
-    private void showFakeCrashCodeDialog() {
+    private void confirmDuressLogoutMode(String mode) {
+        if (mode.equals(LuminaDuress.getMode()) || getParentActivity() == null) {
+            return;
+        }
+        // Never arm a logout mode on a code that is the passcode or the vault's secret code:
+        // fix the code first, then come back here for the warning.
+        if (fixDuressCodeClash(() -> confirmDuressLogoutMode(mode))) {
+            return;
+        }
+        final boolean all = LuminaDuress.MODE_LOGOUT_ALL.equals(mode);
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LuminaLocale.getString(all
+                ? R.string.LuminaDuressModeLogoutAll
+                : R.string.LuminaDuressModeLogoutCurrent));
+        builder.setMessage(LuminaLocale.getString(all
+                ? R.string.LuminaDuressModeLogoutAllInfo
+                : R.string.LuminaDuressModeLogoutCurrentInfo)
+                + "\n\n" + LuminaLocale.getString(R.string.LuminaDuressLogoutWarning));
+        builder.setPositiveButton(LuminaLocale.getString(R.string.LuminaDuressConfirmEnable), (d, w) -> {
+            LuminaDuress.setMode(mode);
+            update();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog dialog = builder.create();
+        showDialog(dialog);
+        TextView button = (TextView) dialog.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (button != null) {
+            button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+        }
+    }
+
+    /** Show a one-button error for a rejected code. */
+    private void showCodeError(int titleRes, int messageRes) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder err = new AlertDialog.Builder(getParentActivity());
+        err.setTitle(LuminaLocale.getString(titleRes));
+        err.setMessage(LuminaLocale.getString(messageRes));
+        err.setPositiveButton(LocaleController.getString(R.string.OK), null);
+        showDialog(err.create());
+    }
+
+    /**
+     * Prompt for the duress code. Stored in plaintext under {@code fakeCrashCode} via
+     * {@link LuminaDuress}; this is a SEPARATE local code that must differ from both the
+     * Telegram passcode and the vault's secret code. With a 4-digit PIN passcode the lock
+     * screen only accepts 4 digits, so the dialog says so.
+     */
+    private void showDuressCodeDialog() {
+        showDuressCodeDialog(0, null);
+    }
+
+    /**
+     * @param reasonRes when non-zero, shown as the dialog's message: why the code has to be
+     *                  changed before a mode can be armed (see {@link #fixDuressCodeClash}).
+     * @param afterSave run once a valid code was saved (not on cancel or a rejected code).
+     */
+    private void showDuressCodeDialog(int reasonRes, Runnable afterSave) {
         final Context context = getParentActivity();
         if (context == null) {
             return;
@@ -513,7 +634,7 @@ public class LuminaDisguiseActivity extends BaseFragment {
         edit.setBackgroundDrawable(null);
         edit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         edit.setSingleLine(true);
-        edit.setText(LuminaConfig.getString(LuminaConfig.KEY_FAKE_CRASH_CODE, ""));
+        edit.setText(LuminaDuress.getCode());
         edit.setSelection(edit.length());
 
         final FrameLayout container = new FrameLayout(context);
@@ -521,26 +642,35 @@ public class LuminaDisguiseActivity extends BaseFragment {
                 Gravity.CENTER_VERTICAL, 24, 6, 24, 0));
 
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeDialogTitle));
+        builder.setTitle(LuminaLocale.getString(R.string.LuminaDuressCodeDialogTitle));
+        String message = reasonRes != 0 ? LuminaLocale.getString(reasonRes) : null;
+        if (SharedConfig.passcodeHash.length() > 0 && SharedConfig.passcodeType == SharedConfig.PASSCODE_TYPE_PIN) {
+            String pinHint = LuminaLocale.getString(R.string.LuminaDuressCodePinHint);
+            message = message == null ? pinHint : message + "\n\n" + pinHint;
+        }
+        if (message != null) {
+            builder.setMessage(message);
+        }
         builder.setView(container);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
             final String entered = edit.getText().toString().trim();
-            // Duress code must NOT equal the real Telegram passcode. PasscodeView runs the
-            // fake-crash check BEFORE SharedConfig.checkPasscode, so a collision would fire the
-            // fake crash on every correct unlock and lock the user out permanently. Reject it.
-            if (!entered.isEmpty() && SharedConfig.checkPasscode(entered)) {
-                if (getParentActivity() != null) {
-                    AlertDialog.Builder err = new AlertDialog.Builder(getParentActivity());
-                    err.setTitle(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeDialogTitle));
-                    err.setMessage(LuminaLocale.getString(R.string.LuminaSecurityFakeCrashCodeSameAsPasscode));
-                    err.setPositiveButton(LocaleController.getString(R.string.OK), null);
-                    showDialog(err.create());
-                }
+            // The duress code must NOT equal the real Telegram passcode. PasscodeView lets the
+            // real passcode win anyway, but then the duress code could never fire there; say so
+            // instead of saving a code that silently does nothing. Nor the vault's secret code:
+            // the vault checks its unlock code first, so the duress code would never fire on the
+            // password door or the decoys.
+            final int clash = LuminaDuress.clashOf(entered);
+            if (clash != LuminaDuress.CLASH_NONE) {
+                showCodeError(R.string.LuminaDuressCodeDialogTitle, clashMessage(clash));
                 return;
             }
-            LuminaConfig.putString(LuminaConfig.KEY_FAKE_CRASH_CODE, entered);
+            LuminaDuress.setCode(entered);
             update();
             AndroidUtilities.hideKeyboard(edit);
+            if (afterSave != null) {
+                // After this dialog is gone: afterSave may open the next one.
+                AndroidUtilities.runOnUIThread(afterSave);
+            }
         });
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         showDialog(builder.create());
@@ -572,9 +702,16 @@ public class LuminaDisguiseActivity extends BaseFragment {
         builder.setTitle(LuminaLocale.getString(R.string.LuminaVaultSecretCodeDialogTitle));
         builder.setView(container);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
+            final String entered = edit.getText().toString().trim();
+            // The secret code must differ from the duress code (see showDuressCodeDialog): the
+            // vault would always unlock and the duress code could never fire there.
+            if (!entered.isEmpty() && entered.equals(LuminaDuress.getCode())) {
+                showCodeError(R.string.LuminaVaultSecretCodeDialogTitle, R.string.LuminaVaultCodeSameAsDuress);
+                return;
+            }
             // Any vault change migrates a legacy user and turns the vault on.
             migrateLegacyIfNeeded();
-            LuminaConfig.putString(KEY_DECOY_CODE, edit.getText().toString().trim());
+            LuminaConfig.putString(KEY_DECOY_CODE, entered);
             LuminaConfig.putBoolean(KEY_VAULT_ENABLED, true);
             update();
             AndroidUtilities.hideKeyboard(edit);

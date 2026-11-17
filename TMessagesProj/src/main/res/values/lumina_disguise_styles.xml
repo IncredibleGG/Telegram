@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      LuminaGram disguise launch theme (LuminaDisguiseLaunchActivity, i.e. the Calculator /
+      Notes / Clock launcher aliases). An activity-alias always uses its target's theme, so
+      this is the theme of every launch from a camouflage icon.
+
+      It deliberately sets NO android:windowSplashScreenAnimatedIcon (and does not inherit
+      Theme.TMessages.Start, which does): on Android 12+ the system splash then falls back to
+      the launching alias's own camouflage icon on this plain background, and on Android 6-11
+      the launch window is just this plain colour. Light, like the vault door and the decoys.
+    -->
+    <style name="Theme.Lumina.DisguiseLaunch" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:colorBackground">@android:color/white</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>

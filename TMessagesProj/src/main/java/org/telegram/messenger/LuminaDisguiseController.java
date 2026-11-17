@@ -1,8 +1,18 @@
 package org.telegram.messenger;
 
+import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.res.TypedArray;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
 
+import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.LauncherIconController;
 
 /**
@@ -18,6 +28,11 @@ import org.telegram.ui.LauncherIconController;
  * {@link #applyDisguise(Context, String)} enables exactly the chosen alias and disables
  * every sibling, guaranteeing that precisely one launcher component stays enabled and
  * that the real icon is never revealed behind an active disguise.
+ *
+ * The camouflage aliases target {@link org.telegram.ui.LuminaDisguiseLaunchActivity} (a neutral
+ * trampoline in front of LaunchActivity) so a disguised launch never shows the LuminaGram splash
+ * logo, and {@link #taskDescription} / {@link #applyTaskIdentity} keep the Recents label + icon
+ * on the camouflage as well.
  */
 public final class LuminaDisguiseController {
 
@@ -102,6 +117,142 @@ public final class LuminaDisguiseController {
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
             } catch (Exception ignored) {
             }
+        }
+        // Called from the settings page (context = LaunchActivity): make the running task's
+        // Recents label + icon follow the new launcher identity right away. The callers store
+        // the new preset before applying it, so activeDisguise() already sees it.
+        // (The Activity check comes first so the cold-start call with the application context
+        // never even touches the LaunchActivity class.)
+        if (context instanceof Activity && context instanceof LaunchActivity) {
+            try {
+                ((LaunchActivity) context).refreshLuminaTaskIdentity();
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
+    // ---- Recents identity ------------------------------------------------------------
+
+    /**
+     * The camouflage alias (Calculator / Notes / Clock) currently presented on the launcher, or
+     * null when the launcher shows the real LuminaGram identity (disguise off, or the Default
+     * preset). Read from the persisted disguise state, which
+     * {@link LauncherIconController#tryFixLauncherIconIfNeeded()} enforces on the aliases at
+     * every cold start. Never throws.
+     */
+    public static LauncherIconController.LauncherIcon activeDisguise() {
+        try {
+            if (!LuminaConfig.getBoolean(KEY_ENABLED, false)) {
+                return null;
+            }
+            LauncherIconController.LauncherIcon icon =
+                    iconForPreset(LuminaConfig.getString(KEY_PRESET, PRESET_DEFAULT));
+            return icon != null && icon.isDisguise() ? icon : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static LauncherIconController.LauncherIcon cachedIdentityIcon;
+    private static String cachedIdentityLabel;
+    private static Bitmap cachedIdentityBitmap;
+
+    /**
+     * The TaskDescription an activity of our task should publish, so the Recents screen shows
+     * the camouflage instead of LuminaGram.
+     *
+     * Recents takes a task's label and icon from its TaskDescription and only falls back to the
+     * task's launch component when those are null. That fallback is NOT reliably the camouflage
+     * alias: once the activity that started the task finishes (the vault diverting to its door /
+     * decoy, or the disguise trampoline handing over), older Android versions re-base the task
+     * on the next activity, and a launch from a notification never had the alias at all. All of
+     * those resolve to the application's own label and icon, i.e. "LuminaGram". So while a
+     * camouflage alias is active the label and icon are set explicitly from that alias (read
+     * from the PackageManager, so they always match what the launcher shows). The icon is a
+     * bitmap because the Recents screen ignores resource icons in a TaskDescription.
+     *
+     * Without an active camouflage the label and icon are null, which is exactly the
+     * TaskDescription LaunchActivity always published, so non-disguised behaviour is unchanged.
+     *
+     * @param primaryColor the task colour the caller already uses (0 = none).
+     */
+    @SuppressWarnings("deprecation")
+    public static ActivityManager.TaskDescription taskDescription(Context context, int primaryColor) {
+        String label = null;
+        Bitmap icon = null;
+        LauncherIconController.LauncherIcon disguise = activeDisguise();
+        if (disguise != null && context != null) {
+            loadIdentity(context, disguise);
+            if (cachedIdentityIcon == disguise) {
+                label = cachedIdentityLabel;
+                icon = cachedIdentityBitmap;
+            }
+        }
+        if (primaryColor != 0 && Color.alpha(primaryColor) != 255) {
+            primaryColor = 0; // TaskDescription rejects translucent primary colours
+        }
+        return new ActivityManager.TaskDescription(label, icon, primaryColor);
+    }
+
+    /**
+     * For the vault door and the decoys: publish the camouflage label + icon (see
+     * {@link #taskDescription}) and use the camouflage name as the window title (what
+     * accessibility services announce). Does nothing at all while no camouflage alias is
+     * active, so those screens keep their previous behaviour then. Never throws.
+     */
+    public static void applyTaskIdentity(Activity activity) {
+        if (activity == null || activeDisguise() == null) {
+            return;
+        }
+        try {
+            int color = 0;
+            TypedArray a = activity.getTheme().obtainStyledAttributes(new int[]{android.R.attr.colorPrimary});
+            try {
+                color = a.getColor(0, 0);
+            } finally {
+                a.recycle();
+            }
+            ActivityManager.TaskDescription description = taskDescription(activity, color);
+            activity.setTaskDescription(description);
+            if (description.getLabel() != null) {
+                activity.setTitle(description.getLabel());
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** Load (once per alias) the alias's launcher label and icon. Leaves the cache untouched on failure. */
+    private static void loadIdentity(Context context, LauncherIconController.LauncherIcon disguise) {
+        if (cachedIdentityIcon == disguise) {
+            return;
+        }
+        try {
+            PackageManager pm = context.getPackageManager();
+            int flags = Build.VERSION.SDK_INT >= 24
+                    ? PackageManager.MATCH_DISABLED_COMPONENTS
+                    : PackageManager.GET_DISABLED_COMPONENTS;
+            ActivityInfo info = pm.getActivityInfo(disguise.getComponentName(context), flags);
+            CharSequence label = info.loadLabel(pm);
+            Bitmap bitmap = null;
+            Drawable drawable = info.loadIcon(pm);
+            if (drawable != null) {
+                int size = 0;
+                try {
+                    ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+                    size = am != null ? am.getLauncherLargeIconSize() : 0;
+                } catch (Throwable ignore) {
+                }
+                if (size <= 0) {
+                    size = Math.max(1, (int) (48 * context.getResources().getDisplayMetrics().density));
+                }
+                bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                drawable.setBounds(0, 0, size, size);
+                drawable.draw(new Canvas(bitmap));
+            }
+            cachedIdentityLabel = label != null ? label.toString() : null;
+            cachedIdentityBitmap = bitmap;
+            cachedIdentityIcon = disguise;
+        } catch (Throwable ignore) {
         }
     }
 

@@ -276,11 +276,29 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity-alias>
 
-        <!-- LuminaGram disguise: Calculator camouflage launcher (toggled via LuminaSecurityActivity) -->
+        <!-- ==== LuminaGram disguise launch entry =================================== -->
+        <!-- Target of the three camouflage aliases below (Calculator / Notes / Clock).
+             An activity-alias always uses its target's theme, and LaunchActivity's
+             Theme.TMessages.Start carries the animated LuminaGram logo as the Android 12+
+             splash, so pointing the camouflage icons at LaunchActivity flashed the real logo
+             on every disguised launch. This trampoline has a neutral theme (no splash icon:
+             the system shows the alias's camouflage icon instead), never draws, forwards to
+             LaunchActivity (which still owns the vault gate) and finishes. singleTask with
+             the default affinity = same task as LaunchActivity; see the class comment.
+             Declared before the aliases that target it. The real icon and the icon-pack
+             aliases above still target LaunchActivity directly (normal launches unchanged). -->
+        <activity
+            android:name="org.telegram.ui.LuminaDisguiseLaunchActivity"
+            android:theme="@style/Theme.Lumina.DisguiseLaunch"
+            android:launchMode="singleTask"
+            android:exported="false" />
+        <!-- ==== end LuminaGram disguise launch entry =============================== -->
+
+        <!-- LuminaGram disguise: Calculator camouflage launcher (preset switcher in LuminaDisguiseActivity) -->
         <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.CalculatorIcon"
-            android:targetActivity="org.telegram.ui.LaunchActivity"
+            android:targetActivity="org.telegram.ui.LuminaDisguiseLaunchActivity"
             android:icon="@mipmap/icon_calc_launcher"
             android:roundIcon="@mipmap/icon_calc_launcher_round"
             android:label="@string/LuminaDisguiseAppLabel"
@@ -298,7 +316,7 @@
         <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.NotesIcon"
-            android:targetActivity="org.telegram.ui.LaunchActivity"
+            android:targetActivity="org.telegram.ui.LuminaDisguiseLaunchActivity"
             android:icon="@drawable/lumina_disguise_notes"
             android:roundIcon="@drawable/lumina_disguise_notes"
             android:label="@string/LuminaDisguiseNotesLabel"
@@ -316,7 +334,7 @@
         <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.ClockIcon"
-            android:targetActivity="org.telegram.ui.LaunchActivity"
+            android:targetActivity="org.telegram.ui.LuminaDisguiseLaunchActivity"
             android:icon="@drawable/lumina_disguise_clock"
             android:roundIcon="@drawable/lumina_disguise_clock"
             android:label="@string/LuminaDisguiseClockLabel"
