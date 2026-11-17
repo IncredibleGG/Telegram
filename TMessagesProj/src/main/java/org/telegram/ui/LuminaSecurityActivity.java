@@ -54,6 +54,7 @@ public class LuminaSecurityActivity extends BaseFragment {
     private static final int ID_SESSION_GUARD_CHECK = 7;
     private static final int ID_HOMOGLYPH_WARN = 8;
     private static final int ID_FILE_GUARD = 9;
+    private static final int ID_MESSAGE_WIDGETS = 10;
 
     private UniversalRecyclerView listView;
 
@@ -110,6 +111,13 @@ public class LuminaSecurityActivity extends BaseFragment {
         items.add(UItem.asSwitch(ID_FILE_GUARD, LuminaLocale.getString(R.string.LuminaFileGuard))
                 .setChecked(LuminaConfig.fileMasqueradeGuard));
         items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaFileGuardInfo)));
+
+        // Bot message widgets (upstream 13.2): code from the bot running inside a message. Default ON
+        // (upstream behavior); OFF works like the server's kill switch -- no widget code runs at all.
+        items.add(UItem.asHeader(LuminaLocale.getString(R.string.LuminaMessageWidgetsHeader)));
+        items.add(UItem.asSwitch(ID_MESSAGE_WIDGETS, LuminaLocale.getString(R.string.LuminaMessageWidgets))
+                .setChecked(LuminaConfig.messageWidgetsEnabled));
+        items.add(UItem.asShadow(LuminaLocale.getString(R.string.LuminaMessageWidgetsInfo)));
     }
 
     private void onClick(UItem item, View view, int position, float x, float y) {
@@ -131,6 +139,9 @@ public class LuminaSecurityActivity extends BaseFragment {
                 break;
             case ID_FILE_GUARD:
                 LuminaConfig.toggleFileMasqueradeGuard();
+                break;
+            case ID_MESSAGE_WIDGETS:
+                LuminaConfig.toggleMessageWidgets();
                 break;
         }
         if (listView != null && listView.adapter != null) {

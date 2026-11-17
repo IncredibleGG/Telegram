@@ -25,6 +25,7 @@ import java.io.FileDescriptor;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class FileUploadOperation {
 
@@ -38,13 +39,17 @@ public class FileUploadOperation {
     private boolean nextPartFirst;
     private int operationGuid;
     private static final int minUploadChunkSize = 128;
+    // Big files use the largest part the server accepts: each part costs roughly fixed time on the server.
+    private static final int minUploadChunkSizeBig = 512;
     private static final int minUploadChunkSlowNetworkSize = 32;
     private static final int initialRequestsCount = 8;
     private static final int initialRequestsSlowNetworkCount = 1;
-    private static final int maxUploadingKBytes = 1024 * 2;
+    private static final int maxUploadingKBytes = 1024 * 8;
     private static final int maxUploadingSlowNetworkKBytes = 32;
 
     private int maxRequestsCount;
+    private int uploadConnectionsCount = 4;
+    private final int[] uploadRequestsPerConnection = new int[ConnectionsManager.UploadConnectionsCountPremium];
     private int uploadChunkSize = 64 * 1024;
     private boolean slowNetwork;
     private ArrayList<byte[]> freeRequestIvs;
@@ -124,7 +129,20 @@ public class FileUploadOperation {
             for (int a = 0, count = (slowNetwork ? initialRequestsSlowNetworkCount : initialRequestsCount); a < count; a++) {
                 startUploadRequest();
             }
+            startUploadRequests();
         });
+    }
+
+    // Keeps the whole budget in flight. Parts used to be added one per answer, plus one per
+    // socket write, which is rarely reported, so uploads stayed at the initial request count.
+    private void startUploadRequests() {
+        while (state == 1 && currentUploadRequetsCount < maxRequestsCount) {
+            int count = currentUploadRequetsCount;
+            startUploadRequest();
+            if (currentUploadRequetsCount == count) {
+                break;
+            }
+        }
     }
 
     protected void onNetworkChanged(final boolean slow) {
@@ -153,6 +171,7 @@ public class FileUploadOperation {
                 iv = null;
                 ivChange = null;
                 currentUploadRequetsCount = 0;
+                Arrays.fill(uploadRequestsPerConnection, 0);
                 lastSavedPartNum = 0;
                 uploadFirstPartLater = false;
                 cachedResults.clear();
@@ -309,7 +328,7 @@ public class FileUploadOperation {
                 if (AccountInstance.getInstance(currentAccount).getUserConfig().isPremium() && totalFileSize > FileLoader.DEFAULT_MAX_FILE_SIZE) {
                     maxUploadParts = MessagesController.getInstance(currentAccount).uploadMaxFilePartsPremium;
                 }
-                uploadChunkSize = (int) Math.max(slowNetwork ? minUploadChunkSlowNetworkSize : minUploadChunkSize, (totalFileSize + 1024L * maxUploadParts - 1) / (1024L * maxUploadParts));
+                uploadChunkSize = (int) Math.max(slowNetwork ? minUploadChunkSlowNetworkSize : isBigFile ? minUploadChunkSizeBig : minUploadChunkSize, (totalFileSize + 1024L * maxUploadParts - 1) / (1024L * maxUploadParts));
                 if (1024 % uploadChunkSize != 0) {
                     int chunkSize = 64;
                     while (uploadChunkSize > chunkSize) {
@@ -318,21 +337,26 @@ public class FileUploadOperation {
                     uploadChunkSize = chunkSize;
                 }
                 maxRequestsCount = Math.max(1, (slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes) / uploadChunkSize);
+                // TDLib uploads premium files over 8 sessions.
+                uploadConnectionsCount = AccountInstance.getInstance(currentAccount).getUserConfig().isPremium() ? ConnectionsManager.UploadConnectionsCountPremium : 4;
 
                 // LuminaGram feature #21 (transfer boost, default OFF). When ON -- and only on a
-                // normal-speed network -- raise the upload part to 512 KB, the MTProto upload
-                // maximum: 512 KB is a power of two, 524288 % 524288 == 0, and part <= 512 KB, so
-                // it is valid for both saveFilePart and saveBigFilePart. (1 MB is deliberately NOT
-                // used for uploads: it violates 524288 % part_size == 0 and the server would reject
-                // it -- stock itself never exceeds 512 KB, because uploadMaxFileParts is sized so
-                // the largest allowed file lands on exactly 512 KB parts.) We only ever RAISE toward
-                // a value that still divides 1024, never lower it, so the invariant 1024 %
+                // normal-speed network -- raise the upload part of a SMALL file (saveFilePart,
+                // <= 10 MB) to 512 KB, the MTProto upload maximum: 512 KB is a power of two and
+                // 524288 % 524288 == 0. (1 MB is deliberately NOT used for uploads: it violates
+                // 524288 % part_size == 0 and the server would reject it.) We only ever RAISE
+                // toward a value that still divides 1024, never lower it, so the invariant 1024 %
                 // uploadChunkSize == 0 holds, totalPartsCount computed below can only shrink (stays
                 // <= maxUploadParts), and every part offset stays aligned. maxRequestsCount is
                 // recomputed so the in-flight cap and the encrypted IV pool match the new part
                 // size. When OFF this block is skipped and uploadChunkSize / maxRequestsCount /
                 // totalPartsCount are byte-identical to stock. uploadChunkSize is in KB here.
-                if (LuminaConfig.transferBoost && !slowNetwork) {
+                // 13.2 sync (owner decision): upstream now uploads big files with 512 KB parts,
+                // an 8 MB in-flight budget and per-connection load balancing (8 sessions for
+                // Premium), so boost no longer touches big files -- it keeps only the small-file
+                // acceleration and never fights the upstream big-file pipeline.
+                final boolean luminaUploadBoost = LuminaConfig.transferBoost && !slowNetwork && !isBigFile;
+                if (luminaUploadBoost) {
                     final int boostChunkKB = 512;
                     if (uploadChunkSize < boostChunkKB) {
                         uploadChunkSize = boostChunkKB;
@@ -357,7 +381,7 @@ public class FileUploadOperation {
                 // boost-applied condition keeps the two resume states apart; the suffix is empty
                 // whenever the boost is not applied, so the key -- and every stored resume entry --
                 // stays byte-identical to stock.
-                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : "") + (LuminaConfig.transferBoost && !slowNetwork ? "boost" : ""));
+                fileKey = Utilities.MD5(uploadingFilePath + (isEncrypted ? "enc" : "") + (luminaUploadBoost ? "boost" : ""));
                 long fileSize = preferences.getLong(fileKey + "_size", 0);
                 uploadStartTime = (int)(System.currentTimeMillis() / 1000);
                 boolean rewrite = false;
@@ -570,14 +594,26 @@ public class FileUploadOperation {
         if (slowNetwork) {
             connectionType = ConnectionsManager.ConnectionTypeUpload;
         } else {
-            connectionType = ConnectionsManager.ConnectionTypeUpload | ((requestNumFinal % 4) << 16);
+            // Like TDLib's SessionMultiProxy: the connection with the fewest parts in flight, so a slow
+            // connection gets fewer parts instead of every Nth one holding up the whole upload.
+            int connectionNum = requestNumFinal % uploadConnectionsCount;
+            for (int a = 1; a < uploadConnectionsCount; a++) {
+                int num = (requestNumFinal + a) % uploadConnectionsCount;
+                if (uploadRequestsPerConnection[num] < uploadRequestsPerConnection[connectionNum]) {
+                    connectionNum = num;
+                }
+            }
+            connectionType = ConnectionsManager.ConnectionTypeUpload | (connectionNum << 16);
         }
+        final int requestConnectionNum = connectionType >> 16;
+        uploadRequestsPerConnection[requestConnectionNum]++;
         long time = System.currentTimeMillis();
         int[] requestToken = new int[1];
         requestToken[0] = ConnectionsManager.getInstance(currentAccount).sendRequest(finalRequest, (response, error) -> {
             if (currentOperationGuid != operationGuid) {
                 return;
             }
+            uploadRequestsPerConnection[requestConnectionNum]--;
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("debug_uploading: " + " response reqId " + requestToken[0] + " time" + uploadingFilePath);
             }
@@ -690,7 +726,7 @@ public class FileUploadOperation {
                         }
                         saveInfoTimes++;
                     }
-                    startUploadRequest();
+                    startUploadRequests();
                 }
             } else {
                 state = 4;
@@ -698,9 +734,7 @@ public class FileUploadOperation {
                 cleanup();
             }
         }, null, () -> Utilities.stageQueue.postRunnable(() -> {
-            if (currentUploadRequetsCount < maxRequestsCount) {
-                startUploadRequest();
-            }
+            startUploadRequests();
         }), forceSmallFile ? ConnectionsManager.RequestFlagCanCompress : 0, ConnectionsManager.DEFAULT_DATACENTER_ID, connectionType, true);
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("debug_uploading: " + " send reqId " + requestToken[0] + " " + uploadingFilePath + " file_part=" + currentRequestPartNum + " isBig=" + isBigFile + " file_id=" + currentFileId);

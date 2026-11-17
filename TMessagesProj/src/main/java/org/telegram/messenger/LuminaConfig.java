@@ -131,14 +131,25 @@ public class LuminaConfig {
     // the viewer. Default OFF = stock behavior (swipe closes). Read once at gesture-release time.
     public static boolean swipeVideoToPip;
 
-    // ---- Large-file transfer boost (feature #21) ----
-    // Raise the MTProto upload/download part size (and download concurrency) so large
-    // files move with fewer round trips. Default OFF: when off, FileLoadOperation and
-    // FileUploadOperation take their existing stock code paths untouched and every part
-    // size / part-count value is byte-identical to upstream. When on, downloads use 1 MB
-    // parts and uploads use 512 KB parts -- both server-valid protocol maxima (see the
-    // hooks). Plain static-field read from the transfer hot paths, refreshed by loadConfig().
+    // ---- Transfer boost (feature #21) ----
+    // Raise the MTProto upload/download part size (and download concurrency) so files move
+    // with fewer round trips. Default OFF: when off, FileLoadOperation and FileUploadOperation
+    // take their existing stock code paths untouched and every part size / part-count value is
+    // byte-identical to upstream. When on (13.2 sync, owner decision: never fight upstream's new
+    // pipeline): uploads of SMALL files (<= 10 MB) use 512 KB parts -- upstream already uploads
+    // big files with 512 KB parts and an 8 MB in-flight budget -- and downloads use 1 MB parts
+    // only outside upstream's download byte budget (it yields to the budget, see
+    // FileLoadOperation#luminaYieldBoostToByteBudget). Plain static-field read from the transfer
+    // hot paths, refreshed by loadConfig().
     public static boolean transferBoost;
+
+    // ---- Message widgets (13.2 sync, owner decision) ----
+    // Upstream 13.2 runs bot "message widgets" (TL_messageMediaWidget: HTML + the bot's own JS in a
+    // QuickJS sandbox in the isolated :widgets process). Default ON = upstream behavior. When OFF,
+    // WidgetSandboxSession.disabledByConfig() reports the kill switch exactly like the server flag
+    // AppGlobalConfig.widgetsDisabled: no widget code runs at all, the engine is never prewarmed and
+    // widget blocks keep their placeholder. Volatile: read from any thread by the widget runtime.
+    public static volatile boolean messageWidgetsEnabled = true;
 
     // ---- Message filter (Batch 4 #22) ----
     // A user keyword list; incoming messages whose visible text matches any keyword are dropped
@@ -190,6 +201,7 @@ public class LuminaConfig {
                 sendLargePhotos = preferences.getBoolean("sendLargePhotos", false);
                 swipeVideoToPip = preferences.getBoolean("swipeVideoToPip", false);
                 transferBoost = preferences.getBoolean("transferBoost", false);
+                messageWidgetsEnabled = preferences.getBoolean("messageWidgetsEnabled", true);
                 reloadMessageFilter();
 
                 configLoaded = true;
@@ -1007,6 +1019,21 @@ public class LuminaConfig {
             return;
         }
         editor.putBoolean("transferBoost", transferBoost ^= true).apply();
+    }
+
+    public static void toggleMessageWidgets() {
+        if (editor == null) {
+            return;
+        }
+        editor.putBoolean("messageWidgetsEnabled", messageWidgetsEnabled ^= true).apply();
+        if (!messageWidgetsEnabled) {
+            // Same path as upstream's server kill switch: every widget running now stops at once,
+            // nothing new starts while the toggle is off.
+            try {
+                org.telegram.utils.twidget.WidgetMedia.onKillSwitch();
+            } catch (Throwable ignore) {
+            }
+        }
     }
 
     public static void toggleTranslateBeforeSend() {
