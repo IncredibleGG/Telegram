@@ -2,7 +2,7 @@
  * LuminaGram - AdShield ("隱藏重複廣告") per-chat store, Android port.
  * Copyright (C) 2026 LuminaGram contributors. Licensed under GPL-3.0-or-later.
  *
- * Port of ChatStore in adshield/ref/adshield.py (SPEC §5.5, §6, §8.2, §8.3).
+ * Port of ChatStore in adshield/ref/adshield.py (SPEC §5.5, §6, §8.2, §8.3), algoVersion 3 / formatVersion 3.
  */
 package org.telegram.messenger.lumina;
 
@@ -33,6 +33,11 @@ import java.util.TreeMap;
  * <p><b>Determinism:</b> no result depends on HashMap/HashSet iteration order. Units with exactly
  * equal SPEC §6.7 order tuples (possible only for anonymous units with the same date and the same
  * smallest key hash) are tie-broken by row id, which the reference leaves unspecified.
+ *
+ * <p><b>Index (SPEC §6.6):</b> the units, their "(kind, hash) -> units" index and the record index form a
+ * {@link View} over primitive arrays ({@link KeyIndex}). It is built once per store change (an observe /
+ * delete / notAd batch, expiry) and then shared by every decide of the batch with the same {@code now} and
+ * member handles; decide itself never rebuilds it and only visits the units that share a key with m.
  */
 public final class LuminaAdShieldStore {
 
@@ -71,13 +76,20 @@ public final class LuminaAdShieldStore {
         int kind;               // 1 = endorsement, 2 = not an ad
         long stamp;
         long msgKey;            // endorsement: H("msg", msgId); not-ad: 0
+        /** v3: endorsement by a privileged author: its senderKey; otherwise (self, pinned member, member forward, not-ad) 0. */
+        long author;
         LuminaAdShield.Key[] keys;
         long[] links;
 
         Record(int kind, long stamp, long msgKey, LuminaAdShield.Key[] keys, long[] links) {
+            this(kind, stamp, msgKey, 0, keys, links);
+        }
+
+        Record(int kind, long stamp, long msgKey, long author, LuminaAdShield.Key[] keys, long[] links) {
             this.kind = kind;
             this.stamp = stamp;
             this.msgKey = msgKey;
+            this.author = author;
             this.keys = keys;
             this.links = links;
         }
@@ -108,6 +120,7 @@ public final class LuminaAdShieldStore {
         boolean live;
         int minMsgId;                   // order tuple: (date, live, minMsgId, minKeyHash unsigned)
         long minKeyHash;
+        int nBlocks;                    // v3: number of BLOCK keys
         private HashSet<LuminaAdShield.Key> keySet;
 
         boolean hasKey(LuminaAdShield.Key k) {
@@ -132,15 +145,134 @@ public final class LuminaAdShieldStore {
         long now;
         long[] memberHashes;
         ArrayList<Unit> units = new ArrayList<Unit>();
+        Unit[] unitArr;
         HashMap<Long, Unit> byAlbum = new HashMap<Long, Unit>();
         HashMap<Long, Unit> byRid = new HashMap<Long, Unit>();
-        HashMap<LuminaAdShield.Key, ArrayList<Unit>> index = new HashMap<LuminaAdShield.Key, ArrayList<Unit>>();
+        final KeyIndex index = new KeyIndex();              // (kind, hash) -> unit idx
         ArrayList<Record> liveRecords = new ArrayList<Record>();
-        HashMap<LuminaAdShield.Key, int[]> recordIndex = new HashMap<LuminaAdShield.Key, int[]>();
-        int[] mark;
+        final KeyIndex recordIndex = new KeyIndex();        // (kind, hash) -> live record index
+        final KeyIndex recordVarIndex = new KeyIndex();     // (VAR, hash) of any VAR-family key -> live record index
+        int[] mark;             // == gen: in G(m)
+        int[] v2Mark;           // == gen: in G2(m) (linked by the v2 rules)
         int[] paraGen;
         int[] paraCnt;
+        int[] blockGen;
+        int[] blockCnt;
         int gen;
+    }
+
+    /**
+     * (kind, hash) -> posting list of ints (unit or record indices, in insertion order) over primitive arrays:
+     * an open-addressing table of the distinct keys plus one flat postings array (SPEC §6.6: no
+     * {@code HashMap<Key, List<Unit>>}). Filled with {@link #add}, then {@link #build} once.
+     */
+    static final class KeyIndex {
+        private long[] eHash = new long[16];
+        private byte[] eKind = new byte[16];
+        private int[] eVal = new int[16];
+        private int n;
+        private int[] table;            // distinct-key id + 1; 0 = empty slot
+        private long[] dHash;
+        private byte[] dKind;
+        private int[] dStart;           // postings of key d: [dStart[d], dStart[d + 1])
+        private int[] postings;
+        private int mask;
+
+        void add(int kind, long hash, int val) {
+            if (n == eHash.length) {
+                int cap = n * 2;
+                eHash = Arrays.copyOf(eHash, cap);
+                eKind = Arrays.copyOf(eKind, cap);
+                eVal = Arrays.copyOf(eVal, cap);
+            }
+            eHash[n] = hash;
+            eKind[n] = (byte) kind;
+            eVal[n] = val;
+            n++;
+        }
+
+        private static int slot(int kind, long hash, int mask) {
+            long x = (hash ^ (kind * 0x9E3779B97F4A7C15L)) * 0xBF58476D1CE4E5B9L;
+            return (int) (x ^ (x >>> 32)) & mask;
+        }
+
+        void build() {
+            int cap = 16;
+            while (cap < n * 2) {
+                cap <<= 1;
+            }
+            mask = cap - 1;
+            table = new int[cap];
+            long[] hs = new long[n];
+            byte[] ks = new byte[n];
+            int[] count = new int[n];
+            int[] idOf = new int[n];
+            int nd = 0;
+            for (int e = 0; e < n; e++) {
+                long h = eHash[e];
+                byte k = eKind[e];
+                int i = slot(k, h, mask);
+                int id;
+                while (true) {
+                    int t = table[i];
+                    if (t == 0) {
+                        id = nd++;
+                        table[i] = id + 1;
+                        hs[id] = h;
+                        ks[id] = k;
+                        break;
+                    }
+                    id = t - 1;
+                    if (ks[id] == k && hs[id] == h) {
+                        break;
+                    }
+                    i = (i + 1) & mask;
+                }
+                count[id]++;
+                idOf[e] = id;
+            }
+            dHash = Arrays.copyOf(hs, nd);
+            dKind = Arrays.copyOf(ks, nd);
+            dStart = new int[nd + 1];
+            for (int d = 0; d < nd; d++) {
+                dStart[d + 1] = dStart[d] + count[d];
+            }
+            int[] fill = Arrays.copyOf(dStart, nd);
+            postings = new int[n];
+            for (int e = 0; e < n; e++) {
+                postings[fill[idOf[e]]++] = eVal[e];
+            }
+            eHash = null;
+            eKind = null;
+            eVal = null;
+        }
+
+        /** The distinct-key id of (kind, hash), or -1. */
+        int find(int kind, long hash) {
+            int i = slot(kind, hash, mask);
+            while (true) {
+                int t = table[i];
+                if (t == 0) {
+                    return -1;
+                }
+                if (dKind[t - 1] == (byte) kind && dHash[t - 1] == hash) {
+                    return t - 1;
+                }
+                i = (i + 1) & mask;
+            }
+        }
+
+        int start(int id) {
+            return dStart[id];
+        }
+
+        int end(int id) {
+            return dStart[id + 1];
+        }
+
+        int at(int i) {
+            return postings[i];
+        }
     }
 
     private static final class Rule {
@@ -301,7 +433,8 @@ public final class LuminaAdShieldStore {
                     links[links.length - 1] = h;
                 }
             }
-            upsertEndorse(now, AdShieldTables.keyedHash(key, "msg", Integer.toString(mid)), Arrays.asList(keys), links);
+            upsertEndorse(now, AdShieldTables.keyedHash(key, "msg", Integer.toString(mid)), Arrays.asList(keys), links,
+                    fp.privileged ? fp.senderKey : 0);
         }
         if (fp.store) {
             Row r = new Row();
@@ -345,7 +478,7 @@ public final class LuminaAdShieldStore {
     /**
      * "Not an ad" (SPEC §6.4): records the whole cluster of the message for 90 days.
      * Units: m first, then the rest of G(m) by order; keys per unit by (kind, hash unsigned), links by
-     * hash unsigned; deduped; exact keys before paragraph keys; at most 64 each.
+     * hash unsigned; deduped; record key order (v2 exact, paragraph, then v3 keys; at most 128); links at most 64.
      */
     public boolean markNotAd(int msgId, LuminaAdShield.ChatContext ctx, long now) {
         checkWritable();
@@ -355,7 +488,7 @@ public final class LuminaAdShieldStore {
             if (m == null) {
                 return false;
             }
-            ArrayList<Unit> grp = group(v, m);
+            ArrayList<Unit> grp = group(v, m).units;
             ArrayList<Unit> ordered = new ArrayList<Unit>(grp.size());
             ordered.add(m);
             for (Unit u : grp) {
@@ -413,7 +546,11 @@ public final class LuminaAdShieldStore {
         return n == out.length ? out : Arrays.copyOf(out, n);
     }
 
-    /** Record keys: deduped (first occurrence wins), exact keys first then paragraph keys, max 64. */
+    /**
+     * Record keys (SPEC §6.4): deduped (first occurrence wins); first what v2 stored (exact keys, then
+     * paragraph keys, each in order, at most 64), then the v3 keys (VAR VARL VARS BLOCK) in order; at most 128.
+     * So the paragraph keys are never pushed out by the many VAR keys.
+     */
     static LuminaAdShield.Key[] orderedRecordKeys(List<LuminaAdShield.Key> seq) {
         LinkedHashSet<LuminaAdShield.Key> seen = new LinkedHashSet<LuminaAdShield.Key>(seq);
         ArrayList<LuminaAdShield.Key> out = new ArrayList<LuminaAdShield.Key>(seen.size());
@@ -424,6 +561,14 @@ public final class LuminaAdShieldStore {
         }
         for (LuminaAdShield.Key k : seen) {
             if (k.kind == LuminaAdShield.KIND_PARA) {
+                out.add(k);
+            }
+        }
+        if (out.size() > LuminaAdShield.RECORD_V2_KEYS) {
+            out.subList(LuminaAdShield.RECORD_V2_KEYS, out.size()).clear();
+        }
+        for (LuminaAdShield.Key k : seen) {
+            if (!LuminaAdShield.isV2Kind(k.kind)) {
                 out.add(k);
             }
         }
@@ -458,18 +603,19 @@ public final class LuminaAdShieldStore {
         }
     }
 
-    private void upsertEndorse(long stamp, long msgKey, List<LuminaAdShield.Key> keys, long[] links) {
+    private void upsertEndorse(long stamp, long msgKey, List<LuminaAdShield.Key> keys, long[] links, long author) {
         LuminaAdShield.Key[] ks = orderedRecordKeys(keys);
         long[] ls = capLinks(links);
         for (Record r : records) {
             if (r.kind == REC_ENDORSE && r.msgKey == msgKey) {
                 r.keys = ks;
                 r.links = ls;
+                r.author = author;
                 r.stamp = Math.max(r.stamp, stamp);
                 return;
             }
         }
-        records.add(new Record(REC_ENDORSE, stamp, msgKey, ks, ls));
+        records.add(new Record(REC_ENDORSE, stamp, msgKey, author, ks, ls));
         evictRecords(REC_ENDORSE);
     }
 
@@ -556,7 +702,7 @@ public final class LuminaAdShieldStore {
     // Decide (SPEC §6)
     // =====================================================================================
 
-    private View view(LuminaAdShield.ChatContext ctx, long now) {
+    View view(LuminaAdShield.ChatContext ctx, long now) {
         long[] mh = ctx.memberHashes(key);
         View v = cache;
         if (v != null && v.mutations == mutations && v.now == now && Arrays.equals(v.memberHashes, mh)) {
@@ -679,12 +825,17 @@ public final class LuminaAdShieldStore {
             u.sender = u.live ? minLive.sender : 0;
             u.minMsgId = u.live ? minLive.msgId : 0;
             long minHash = 0;
+            int nBlocks = 0;
             for (int i = 0; i < u.keys.length; i++) {
                 if (i == 0 || AdShieldTables.compareUnsigned(u.keys[i].hash, minHash) < 0) {
                     minHash = u.keys[i].hash;
                 }
+                if (u.keys[i].kind == LuminaAdShield.KIND_BLOCK) {
+                    nBlocks++;
+                }
             }
             u.minKeyHash = minHash;
+            u.nBlocks = nBlocks;
             v.units.add(u);
             if (u.album) {
                 v.byAlbum.put(first.album, u);
@@ -692,18 +843,18 @@ public final class LuminaAdShieldStore {
                 v.byRid.put(first.rid, u);
             }
             for (LuminaAdShield.Key k : u.keys) {
-                ArrayList<Unit> lst = v.index.get(k);
-                if (lst == null) {
-                    lst = new ArrayList<Unit>(2);
-                    v.index.put(k, lst);
-                }
-                lst.add(u);
+                v.index.add(k.kind, k.hash, u.idx);
             }
         }
+        v.index.build();
         int n = v.units.size();
+        v.unitArr = v.units.toArray(new Unit[n]);
         v.mark = new int[n];
+        v.v2Mark = new int[n];
         v.paraGen = new int[n];
         v.paraCnt = new int[n];
+        v.blockGen = new int[n];
+        v.blockCnt = new int[n];
         for (Record r : records) {
             if (now - r.stamp <= LuminaAdShield.RECORD_TTL) {
                 v.liveRecords.add(r);
@@ -711,16 +862,14 @@ public final class LuminaAdShieldStore {
         }
         for (int ri = 0; ri < v.liveRecords.size(); ri++) {
             for (LuminaAdShield.Key k : distinctKeys(v.liveRecords.get(ri).keys)) {
-                int[] lst = v.recordIndex.get(k);
-                if (lst == null) {
-                    lst = new int[]{ri};
-                } else {
-                    lst = Arrays.copyOf(lst, lst.length + 1);
-                    lst[lst.length - 1] = ri;
+                v.recordIndex.add(k.kind, k.hash, ri);
+                if (LuminaAdShield.isVarKind(k.kind)) {
+                    v.recordVarIndex.add(LuminaAdShield.KIND_VAR, k.hash, ri);
                 }
-                v.recordIndex.put(k, lst);
             }
         }
+        v.recordIndex.build();
+        v.recordVarIndex.build();
         return v;
     }
 
@@ -755,7 +904,7 @@ public final class LuminaAdShieldStore {
         return links;
     }
 
-    private Unit unitOf(View v, int msgId) {
+    Unit unitOf(View v, int msgId) {
         Long rid = byMsg.get(msgId);
         if (rid == null) {
             return null;
@@ -798,69 +947,177 @@ public final class LuminaAdShieldStore {
         }
     };
 
-    /** G(m): units sharing any exact key, or >= 2 paragraph keys, with m (m included), by order. */
-    private static ArrayList<Unit> group(View v, Unit m) {
+    /** G(m) by order, plus which of its units are in G2(m) ({@code v.v2Mark[u.idx] == gen}). */
+    static final class Group {
+        final ArrayList<Unit> units;
+        final int gen;
+
+        Group(ArrayList<Unit> units, int gen) {
+            this.units = units;
+            this.gen = gen;
+        }
+    }
+
+    /** v3: VAR / BLOCK only link live units of the same (known) sender. */
+    private static boolean sameSender(Unit u, Unit m) {
+        return u.live && m.live && u.sender != 0 && u.sender == m.sender;
+    }
+
+    /**
+     * G(m) (m included), by order. A unit is in G(m) when
+     * <ul>
+     *   <li>v2 (G2(m)): it shares an exact key (FWD MEDIA TEXT CJK TMPL CONTACT) or >= 2 paragraph keys with m;</li>
+     *   <li>v3, only live units of m's sender: added / removed line (m's VAR = its VARL or VARS, or the other way
+     *       round); replaced line (a shared VARS); block containment (>= 2 shared BLOCK keys and
+     *       5 * shared >= 4 * min(block keys of both)).</li>
+     * </ul>
+     * Only the units sharing a key with m are visited (index lookups).
+     */
+    static Group group(View v, Unit m) {
         int gen = ++v.gen;
         ArrayList<Unit> hit = new ArrayList<Unit>();
         hit.add(m);
         v.mark[m.idx] = gen;
+        v.v2Mark[m.idx] = gen;
+        ArrayList<Unit> blockTouched = null;
+        KeyIndex ix = v.index;
+        Unit[] all = v.unitArr;
         for (LuminaAdShield.Key k : m.keys) {
-            ArrayList<Unit> us = v.index.get(k);
-            if (us == null) {
+            int kind = k.kind;
+            if (kind == LuminaAdShield.KIND_VAR) {          // m's full text = the other one minus a line (m is shorter)
+                varHit(v, m, LuminaAdShield.KIND_VARL, k.hash, gen, hit);
+                varHit(v, m, LuminaAdShield.KIND_VARS, k.hash, gen, hit);
                 continue;
             }
-            boolean exact = LuminaAdShield.isExactKind(k.kind);
-            for (Unit u : us) {
-                if (v.mark[u.idx] == gen) {
+            if (kind == LuminaAdShield.KIND_VARL || kind == LuminaAdShield.KIND_VARS) {
+                varHit(v, m, LuminaAdShield.KIND_VAR, k.hash, gen, hit);    // m minus a line = the other's full text
+                if (kind == LuminaAdShield.KIND_VARS) {
+                    varHit(v, m, LuminaAdShield.KIND_VARS, k.hash, gen, hit);   // replaced line: strict on both sides
+                }
+                continue;
+            }
+            int d = ix.find(kind, k.hash);
+            if (d < 0) {
+                continue;
+            }
+            for (int p = ix.start(d), e = ix.end(d); p < e; p++) {
+                Unit u = all[ix.at(p)];
+                if (kind == LuminaAdShield.KIND_BLOCK) {
+                    if (v.blockGen[u.idx] != gen) {
+                        v.blockGen[u.idx] = gen;
+                        v.blockCnt[u.idx] = 0;
+                        if (blockTouched == null) {
+                            blockTouched = new ArrayList<Unit>();
+                        }
+                        blockTouched.add(u);
+                    }
+                    v.blockCnt[u.idx]++;
                     continue;
                 }
-                if (exact) {
-                    v.mark[u.idx] = gen;
-                    hit.add(u);
-                } else {
+                if (v.v2Mark[u.idx] == gen) {
+                    continue;
+                }
+                boolean link;
+                if (LuminaAdShield.isExactKind(kind)) {
+                    link = true;
+                } else {                                    // PARA
                     if (v.paraGen[u.idx] != gen) {
                         v.paraGen[u.idx] = gen;
                         v.paraCnt[u.idx] = 0;
                     }
-                    if (++v.paraCnt[u.idx] >= 2) {
+                    link = ++v.paraCnt[u.idx] >= 2;
+                }
+                if (link) {
+                    v.v2Mark[u.idx] = gen;
+                    if (v.mark[u.idx] != gen) {
                         v.mark[u.idx] = gen;
                         hit.add(u);
                     }
                 }
             }
         }
+        if (blockTouched != null) {
+            for (Unit u : blockTouched) {
+                if (v.mark[u.idx] != gen && sameSender(u, m)
+                        && LuminaAdShield.blockContained(v.blockCnt[u.idx], m.nBlocks, u.nBlocks)) {
+                    v.mark[u.idx] = gen;
+                    hit.add(u);
+                }
+            }
+        }
         Collections.sort(hit, BY_ORDER);
-        return hit;
+        return new Group(hit, gen);
     }
 
-    /** Overlap of m with each live record (shares an exact key or >= 2 paragraph keys). */
-    private static boolean[] recordOverlaps(View v, Unit m) {
+    private static void varHit(View v, Unit m, int kind, long hash, int gen, ArrayList<Unit> hit) {
+        KeyIndex ix = v.index;
+        int d = ix.find(kind, hash);
+        if (d < 0) {
+            return;
+        }
+        for (int p = ix.start(d), e = ix.end(d); p < e; p++) {
+            Unit u = v.unitArr[ix.at(p)];
+            if (v.mark[u.idx] != gen && sameSender(u, m)) {
+                v.mark[u.idx] = gen;
+                hit.add(u);
+            }
+        }
+    }
+
+    /**
+     * Overlap of m with each live record (SPEC §6.3), any sender. {@code exact}: shares a v2 exact key or >= 2
+     * paragraph keys (= the v2 overlap). {@code tolerant} (v3): shares any VAR-family hash (across the three
+     * kinds), or m has >= 2 BLOCK keys and 5 * (those in the record) >= 4 * (m's BLOCK keys). A tolerant
+     * overlap can only protect m (endorsed / not an ad), never make it an impersonation.
+     */
+    private static void recordOverlaps(View v, Unit m, boolean[] exact, boolean[] tolerant) {
         int nr = v.liveRecords.size();
-        boolean[] hit = new boolean[nr];
         if (nr == 0) {
-            return hit;
+            return;
         }
         int[] para = null;
+        int[] blk = null;
         for (LuminaAdShield.Key k : m.keys) {
-            int[] lst = v.recordIndex.get(k);
-            if (lst == null) {
+            int kind = k.kind;
+            if (LuminaAdShield.isVarKind(kind)) {
+                int d = v.recordVarIndex.find(LuminaAdShield.KIND_VAR, k.hash);
+                if (d >= 0) {
+                    for (int p = v.recordVarIndex.start(d), e = v.recordVarIndex.end(d); p < e; p++) {
+                        tolerant[v.recordVarIndex.at(p)] = true;
+                    }
+                }
                 continue;
             }
-            boolean exact = LuminaAdShield.isExactKind(k.kind);
-            for (int ri : lst) {
-                if (exact) {
-                    hit[ri] = true;
-                } else {
+            int d = v.recordIndex.find(kind, k.hash);
+            if (d < 0) {
+                continue;
+            }
+            for (int p = v.recordIndex.start(d), e = v.recordIndex.end(d); p < e; p++) {
+                int ri = v.recordIndex.at(p);
+                if (kind == LuminaAdShield.KIND_BLOCK) {
+                    if (blk == null) {
+                        blk = new int[nr];
+                    }
+                    blk[ri]++;
+                } else if (LuminaAdShield.isExactKind(kind)) {
+                    exact[ri] = true;
+                } else {                                    // PARA
                     if (para == null) {
                         para = new int[nr];
                     }
                     if (++para[ri] >= 2) {
-                        hit[ri] = true;
+                        exact[ri] = true;
                     }
                 }
             }
         }
-        return hit;
+        if (blk != null) {
+            for (int ri = 0; ri < nr; ri++) {
+                if (LuminaAdShield.blockContained(blk[ri], m.nBlocks, m.nBlocks)) {
+                    tolerant[ri] = true;
+                }
+            }
+        }
     }
 
     private static boolean hasAnyKey(Unit u, List<LuminaAdShield.Key> ks) {
@@ -879,6 +1136,21 @@ public final class LuminaAdShieldStore {
             }
         }
         return true;
+    }
+
+    private static boolean subsetOf(long[] links, long[] allowed) {
+        for (long l : links) {
+            if (!contains(allowed, l)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void addAll(HashSet<Long> to, long[] links) {
+        for (long l : links) {
+            to.add(l);
+        }
     }
 
     private static final class Candidate {
@@ -924,49 +1196,94 @@ public final class LuminaAdShieldStore {
             return res;
         }
         res.replyToMe = (m.flags & LuminaAdShield.F_REPLY_ME) != 0;
-        if ((m.flags & LuminaAdShield.F_ENDORSING) != 0) {
+        // v3 §6.12: with the per-group option on, a privileged author's message (PRIV, never self) is no longer
+        // endorsed by itself; only the same author's own repeats are counted. Option off: exactly v2.
+        boolean privMode = st.foldPrivilegedRepeats && (m.flags & LuminaAdShield.F_PRIV) != 0
+                && (m.flags & LuminaAdShield.F_SELF) == 0;
+        if ((m.flags & LuminaAdShield.F_ENDORSING) != 0 && !privMode) {
             res.state = LuminaAdShield.Decision.ENDORSED;
             return res;
         }
-        ArrayList<Unit> group = group(v, m);
-        boolean[] recHit = recordOverlaps(v, m);
+        Group g = group(v, m);
+        ArrayList<Unit> group = g.units;
+        int nr = v.liveRecords.size();
+        boolean[] recExact = new boolean[nr];
+        boolean[] recTol = new boolean[nr];
+        recordOverlaps(v, m, recExact, recTol);
 
-        // endorsement (records + endorsing units still in the pool)
-        HashSet<Long> endorseLinks = new HashSet<Long>();
-        boolean endorsedHit = false;
-        for (int ri = 0; ri < recHit.length; ri++) {
-            if (recHit[ri] && v.liveRecords.get(ri).kind == REC_ENDORSE) {
-                endorsedHit = true;
-                for (long l : v.liveRecords.get(ri).links) {
-                    endorseLinks.add(l);
-                }
-            }
-        }
-        for (Unit u : group) {
-            if (u != m && (u.flags & LuminaAdShield.F_ENDORSING) != 0) {
-                endorsedHit = true;
-                for (long l : u.links) {
-                    endorseLinks.add(l);
-                }
-            }
-        }
         boolean impersonating = false;
-        if (endorsedHit) {
-            if (subsetOf(m.links, endorseLinks)) {
+        HashSet<Long> endorseLinks = null;
+        if (privMode) {
+            // Only another privileged author's endorsement protects m (another admin posted the same: kept).
+            // The same author's own, and author-0 endorsements (self, pinned member, member forward) do not.
+            for (int ri = 0; ri < nr; ri++) {
+                Record r = v.liveRecords.get(ri);
+                if (r.kind == REC_ENDORSE && r.author != 0 && r.author != m.sender && (recExact[ri] || recTol[ri])) {
+                    res.state = LuminaAdShield.Decision.ENDORSED;
+                    return res;
+                }
+            }
+            for (Unit u : group) {
+                if (u != m && u.live && (u.flags & LuminaAdShield.F_PRIV) != 0 && u.sender != m.sender) {
+                    res.state = LuminaAdShield.Decision.ENDORSED;
+                    return res;
+                }
+            }
+        } else {
+            // E1 = exact overlaps (v2): endorsed or impersonation as in v2. E2 = only tolerant overlaps (VAR /
+            // BLOCK): endorsed when m's links are a subset of E2's links, otherwise nothing (never impersonation).
+            boolean exactHit = false, tolHit = false;
+            HashSet<Long> exactLinks = new HashSet<Long>();
+            HashSet<Long> tolLinks = new HashSet<Long>();
+            for (int ri = 0; ri < nr; ri++) {
+                Record r = v.liveRecords.get(ri);
+                if (r.kind != REC_ENDORSE) {
+                    continue;
+                }
+                if (recExact[ri]) {
+                    exactHit = true;
+                    addAll(exactLinks, r.links);
+                } else if (recTol[ri]) {
+                    tolHit = true;
+                    addAll(tolLinks, r.links);
+                }
+            }
+            for (Unit u : group) {
+                if (u != m && (u.flags & LuminaAdShield.F_ENDORSING) != 0) {
+                    if (v.v2Mark[u.idx] == g.gen) {
+                        exactHit = true;
+                        addAll(exactLinks, u.links);
+                    } else {
+                        tolHit = true;
+                        addAll(tolLinks, u.links);
+                    }
+                }
+            }
+            if (exactHit) {
+                if (subsetOf(m.links, exactLinks)) {
+                    res.state = LuminaAdShield.Decision.ENDORSED;
+                    return res;
+                }
+                impersonating = true;
+                endorseLinks = exactLinks;
+            } else if (tolHit && subsetOf(m.links, tolLinks)) {
                 res.state = LuminaAdShield.Decision.ENDORSED;
                 return res;
             }
-            impersonating = true;
         }
 
-        // not an ad (90 days)
-        for (int ri = 0; ri < recHit.length; ri++) {
-            if (recHit[ri] && v.liveRecords.get(ri).kind == REC_NOTAD) {
+        // not an ad (90 days): exact overlap (v2); or tolerant overlap and m's links within that record's links
+        for (int ri = 0; ri < nr; ri++) {
+            Record r = v.liveRecords.get(ri);
+            if (r.kind == REC_NOTAD && (recExact[ri] || (recTol[ri] && subsetOf(m.links, r.links)))) {
                 res.state = LuminaAdShield.Decision.NOT_AD;
                 return res;
             }
         }
 
+        // privileged mode: strong features trusted only by a pin / downgraded by the own channel still count
+        boolean hasStrong = (m.flags & LuminaAdShield.STRONG_MASK) != 0
+                || (privMode && (m.flags & LuminaAdShield.F_PRIV_STRONG) != 0);
         List<Unit> gc;
         String cls;
         if (impersonating) {
@@ -979,8 +1296,19 @@ public final class LuminaAdShieldStore {
             gc = others;
             cls = LuminaAdShield.Decision.CLASS_STRONG;
         } else {
-            gc = group;
-            if ((m.flags & LuminaAdShield.STRONG_MASK) != 0) {
+            if (privMode) {
+                // privileged mode counts only the same author's live units (members' copies and anonymous units never)
+                ArrayList<Unit> same = new ArrayList<Unit>();
+                for (Unit u : group) {
+                    if (u.live && u.sender == m.sender) {
+                        same.add(u);
+                    }
+                }
+                gc = same;
+            } else {
+                gc = group;
+            }
+            if (hasStrong) {
                 cls = LuminaAdShield.Decision.CLASS_STRONG;
             } else {
                 ArrayList<LuminaAdShield.Key> mf = new ArrayList<LuminaAdShield.Key>(2);
@@ -991,7 +1319,7 @@ public final class LuminaAdShieldStore {
                 }
                 boolean sharesMediaFwd = false;
                 if (!mf.isEmpty()) {
-                    for (Unit u : group) {
+                    for (Unit u : gc) {
                         if (u != m && hasAnyKey(u, mf)) {
                             sharesMediaFwd = true;
                             break;
@@ -1106,7 +1434,7 @@ public final class LuminaAdShieldStore {
             return res;
         }
         if ((f & (LuminaAdShield.F_REPLY_ME | LuminaAdShield.F_MENTION_ME)) != 0 && st.exemptReplies
-                && (f & LuminaAdShield.STRONG_MASK) == 0 && !impersonating
+                && !hasStrong && !impersonating
                 && (f & LuminaAdShield.W_MASS_MENTION) == 0) {
             res.state = LuminaAdShield.Decision.EXEMPT;
             return res;
@@ -1264,6 +1592,7 @@ public final class LuminaAdShieldStore {
             b.u8(rec.kind);
             b.u64(rec.stamp);
             b.u64(rec.msgKey);
+            b.u64(rec.author);                      // v3
             b.u8(rec.keys.length);
             for (LuminaAdShield.Key k : rec.keys) {
                 b.u8(k.kind);
@@ -1372,8 +1701,9 @@ public final class LuminaAdShieldStore {
      * Returns null (caller discards the file and starts over) on any SPEC §8.3 rejection: short file,
      * magic / format / algo / tables version / keyCheck / chatTag / bodyHash mismatch, count limits,
      * out-of-range dates, first > last, msgId > 2^31-1, anon/msgId/sender inconsistencies, duplicate
-     * msgId or handle, reserved flag bits, per-row / per-record list limits, bad kinds, truncation or
-     * trailing bytes.
+     * msgId or handle, reserved flag bits (17, 31), PRIV without ENDORSING, PRIV_STRONG without PRIV,
+     * per-row / per-record list limits, bad kinds (not 1..11), a not-ad record with a msgKey or authorKey,
+     * truncation or trailing bytes.
      */
     public static LuminaAdShieldStore deserialize(byte[] data, long chatId, byte[] key) {
         return deserialize(data, chatId, key, null);
@@ -1445,6 +1775,12 @@ public final class LuminaAdShieldStore {
             if ((msgId == 0) != anonFlag || (msgId == 0 && sender != 0)) {
                 return null;
             }
+            if ((flags & LuminaAdShield.F_PRIV) != 0 && (flags & LuminaAdShield.F_ENDORSING) == 0) {
+                return null;
+            }
+            if ((flags & LuminaAdShield.F_PRIV_STRONG) != 0 && (flags & LuminaAdShield.F_PRIV) == 0) {
+                return null;
+            }
             int nk = r.u8();
             if (nk > LuminaAdShield.MAX_ROW_KEYS) {
                 return null;
@@ -1453,7 +1789,7 @@ public final class LuminaAdShieldStore {
             for (int k = 0; k < nk; k++) {
                 int kind = r.u8();
                 long hash = r.u64();
-                if (kind < 1 || kind > 7) {
+                if (!LuminaAdShield.isValidKind(kind)) {
                     return null;
                 }
                 keys[k] = new LuminaAdShield.Key(kind, hash);
@@ -1500,7 +1836,9 @@ public final class LuminaAdShieldStore {
             int kind = r.u8();
             long stamp = r.u64();
             long msgKey = r.u64();
-            if ((kind != REC_ENDORSE && kind != REC_NOTAD) || !inRange(stamp)) {
+            long author = r.u64();
+            if ((kind != REC_ENDORSE && kind != REC_NOTAD) || !inRange(stamp)
+                    || (kind == REC_NOTAD && (author != 0 || msgKey != 0))) {
                 return null;
             }
             if (kind == REC_ENDORSE) {
@@ -1516,7 +1854,7 @@ public final class LuminaAdShieldStore {
             for (int k = 0; k < nk; k++) {
                 int kk = r.u8();
                 long hash = r.u64();
-                if (kk < 1 || kk > 7) {
+                if (!LuminaAdShield.isValidKind(kk)) {
                     return null;
                 }
                 keys[k] = new LuminaAdShield.Key(kk, hash);
@@ -1529,7 +1867,7 @@ public final class LuminaAdShieldStore {
             for (int k = 0; k < nl; k++) {
                 links[k] = r.u64();
             }
-            cs.records.add(new Record(kind, stamp, msgKey, keys, links));
+            cs.records.add(new Record(kind, stamp, msgKey, author, keys, links));
         }
         if (endorse > LuminaAdShield.MAX_ENDORSE_RECORDS || notAd > LuminaAdShield.MAX_NOTAD_RECORDS) {
             return null;

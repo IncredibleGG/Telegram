@@ -1,7 +1,7 @@
 # AdShield checker (Android / Java)
 
 Dev-only conformance suite for the Android port of the shared AdShield core
-("隱藏重複廣告", SPEC v2: algoVersion 2, formatVersion 2, tables `f40fc4cc`).
+("隱藏重複廣告", SPEC v3: algoVersion 3, formatVersion 3, tables `25528dcc`).
 Nothing in `lumina-dev/` is part of any Gradle source set, so the app build never compiles it.
 
 ```sh
@@ -16,14 +16,15 @@ What it runs, all on the engine's own 16 MB-stack thread (`LuminaAdShieldThread`
 | tsv-131 | `vectors/*.tsv` like `adshield/check/CheckVectors.java`, LF and CRLF |
 | tables | fold idempotent / never outputs DROP over all scalars, Hangul composition, invisibles |
 | normalize-55 | `vectors/normalize_vectors.json`: fold (string + scalars), text, cjk, wlen, cjkCount, otherLetterCount, paragraphs |
-| fingerprint-57 | `vectors/fingerprint_vectors.json`: every SPEC §10.2 field (links in order with token/type/kind/source/feature/hash, keys in order with kind/tag/payload/hash, flags, subsetLinks, pending, resolved*, senderKey, store, endorsing, ...) |
-| scenarios-97 | `corpus/scenarios.json`, runner identical to `ref/test_adshield.py` `run_scenario` (fold sets and states, 3 sensitivities) |
+| fingerprint-76 | `vectors/fingerprint_vectors.json`: every SPEC §10.2 field (links in order with token/type/kind/source/feature/hash, keys in order with kind/tag/payload/hash incl. v3 VAR/VARL/VARS/BLOCK, contentLines, blocks, flags incl. PRIV/PRIV_STRONG, subsetLinks, pending, resolved*, senderKey, store, endorsing, privileged, ...) |
+| scenarios-138 | `corpus/scenarios.json`, runner identical to `ref/test_adshield.py` `run_scenario` (fold sets and states, 3 sensitivities; scenario settings may carry `foldPrivilegedRepeats`) |
 | load-order-shuffle / reverse-order | `test_observe_order_independent` (5 shuffles per eligible scenario; FP-20a/b, RG-01/02, EV-25 covered) and FP-20a vs FP-20b |
-| storage | round trip (same bytes, same decisions), wrong key/chat, truncation, corrupt body, forged stores, no plaintext in the blob, delete anonymizes, row cap, eviction, observe range checks, endorsement upsert, not-ad determinism, handle order |
-| spec-8.3-rejections | every SPEC §8.3 rejection rule on blobs written by an independent writer, plus boundary values that must still be accepted |
+| storage | round trip (same bytes, same decisions), wrong key/chat, truncation, corrupt body, forged stores (incl. PRIV / PRIV_STRONG / not-ad author), no plaintext in the blob, delete anonymizes, row cap, eviction, observe range checks, endorsement upsert, not-ad determinism and v3 record key order, handle order |
+| spec-8.3-rejections | every SPEC §8.3 rejection rule (format v3: record authorKey, 72 / 128 keys, kinds 1..11, flag bits 9 / 15) on blobs written by an independent writer, plus boundary values that must still be accepted |
 | account | ForgetAll (files gone, every write refused, delayed flush cannot recreate files), per-userId dirs, reload, purgeOrphans after a key change, logout vs panic wipe, total cap LRU by mtime, no files while off/ineligible, 8-chat memory cap, FileOps seam |
 | robustness | deep-recursion input on a 64 KB stack never escapes `observe`; same input processed on the engine thread |
-| perf | `observe` x3000 and `decide` timings on a 3000-row chat |
+| v3-rules | `ref/test_adshield.py` TestV3 / TestV3Fixes: VAR key kinds and ratios, VAR / BLOCK matching (same sender only), block rules, 72-key cap round trip, record authors and the v2 header discard, privileged definition, CR LF, author of a privileged forward of the linked channel and PRIV_STRONG, tolerant overlap never impersonation, `foldPrivilegedRepeats` only affects PRIV messages (every scenario) |
+| perf / perf v3 | `observe` x3000 and `decide` timings on a 3000-row chat, short one-liners and multi-line price lists (~32 keys per row) |
 
 `vectors/` and `corpus/` are verbatim copies of `adshield/vectors` and `adshield/corpus`
 (re-copy them whenever the shared core is regenerated; `.gitattributes` keeps them byte-exact).

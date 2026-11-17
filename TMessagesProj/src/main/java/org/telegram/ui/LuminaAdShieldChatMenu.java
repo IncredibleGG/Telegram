@@ -8,6 +8,8 @@ import android.content.Context;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -22,11 +24,13 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.RadioColorCell;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.Switch;
 
 /**
- * B: 跟隨預設（目前：開/關） / 在此群開啟 / 在此群關閉, plus 「最近 7 天已收合 N 則」 when N &gt; 0.
- * Only offered for eligible groups (the chat has an AdShield session). Choosing 「在此群開啟」 before
- * the feature was ever turned on shows the first-time explainer first.
+ * B: 跟隨預設（目前：開/關） / 在此群開啟 / 在此群關閉, plus 「最近 7 天已收合 N 則」 when N &gt; 0, and the
+ * per-group switch 「連管理員和頻道的也收」 (SPEC §6.12, default off; it takes effect while the feature is on
+ * for the group). Only offered for eligible groups (the chat has an AdShield session). Choosing
+ * 「在此群開啟」 before the feature was ever turned on shows the first-time explainer first.
  */
 public final class LuminaAdShieldChatMenu {
 
@@ -75,6 +79,8 @@ public final class LuminaAdShieldChatMenu {
             });
             layout.addView(cell);
         }
+        layout.addView(privilegedRow(context, rp, session),
+                LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
         builder.setView(layout);
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         fragment.showDialog(builder.create());
@@ -85,6 +91,57 @@ public final class LuminaAdShieldChatMenu {
                 countView.setVisibility(View.VISIBLE);
             }
         });
+    }
+
+    /** 「連管理員和頻道的也收」 with its help line; toggling stores it for this group and re-decides the chat. */
+    private static View privilegedRow(Context context, Theme.ResourcesProvider rp, LuminaAdShieldChatSession session) {
+        final String title = LuminaLocale.getString(R.string.LuminaAdShieldChatPrivFold);
+        final String info = LuminaLocale.getString(R.string.LuminaAdShieldChatPrivFoldInfo);
+        final Switch sw = new Switch(context, rp);
+        FrameLayout row = new FrameLayout(context) {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo node) {
+                super.onInitializeAccessibilityNodeInfo(node);
+                node.setClassName("android.widget.Switch");
+                node.setCheckable(true);
+                node.setChecked(sw.isChecked());
+                node.setContentDescription(title + "\n" + info);
+            }
+        };
+        row.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector, rp), Theme.RIPPLE_MASK_ALL));
+        boolean rtl = LocaleController.isRTL;
+        int gravity = rtl ? Gravity.RIGHT : Gravity.LEFT;
+
+        LinearLayout texts = new LinearLayout(context);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        TextView titleView = new TextView(context);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        titleView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, rp));
+        titleView.setGravity(gravity);
+        titleView.setText(title);
+        texts.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        TextView infoView = new TextView(context);
+        infoView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        infoView.setTextColor(Theme.getColor(Theme.key_dialogTextGray3, rp));
+        infoView.setGravity(gravity);
+        infoView.setText(info);
+        texts.addView(infoView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+        texts.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        row.addView(texts, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                gravity | Gravity.CENTER_VERTICAL, rtl ? 70 : 24, 10, rtl ? 24 : 70, 10));
+
+        sw.setColors(Theme.key_switchTrack, Theme.key_switchTrackChecked, Theme.key_windowBackgroundWhite,
+                Theme.key_windowBackgroundWhite);
+        sw.setChecked(session.getFoldPrivileged(), false);
+        sw.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(sw, LayoutHelper.createFrame(37, 20, (rtl ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL,
+                22, 0, 22, 0));
+        row.setOnClickListener(v -> {
+            boolean on = !sw.isChecked();
+            sw.setChecked(on, true);
+            session.setFoldPrivileged(on);
+        });
+        return row;
     }
 
     private static void choose(BaseFragment fragment, LuminaAdShieldChatSession session, int mode) {

@@ -2,7 +2,7 @@
  * LuminaGram - AdShield ("隱藏重複廣告" / hide repeated ads) core engine, Android port.
  * Copyright (C) 2026 LuminaGram contributors. Licensed under GPL-3.0-or-later.
  *
- * Normative source: adshield/SPEC.md (algoVersion 2 / formatVersion 2), the reference engine
+ * Normative source: adshield/SPEC.md (algoVersion 3 / formatVersion 3), the reference engine
  * adshield/ref/adshield.py, adshield/vectors/*.json and adshield/corpus/scenarios.json.
  * This file is a function-by-function port of the reference (SPEC §9.2); it must reproduce the
  * vectors byte for byte. Checker: lumina-dev/adshield-check (not compiled by the app build).
@@ -48,8 +48,8 @@ public final class LuminaAdShield {
     private LuminaAdShield() {
     }
 
-    public static final int ALGO_VERSION = 2;
-    public static final int FORMAT_VERSION = 2;
+    public static final int ALGO_VERSION = 3;
+    public static final int FORMAT_VERSION = 3;
 
     public static final long MINUTE = 60;
     public static final long HOUR = 3600;
@@ -61,6 +61,17 @@ public final class LuminaAdShield {
     static final int MIN_CJK_COUNT = 8;
     static final int PARA_MIN_WLEN = 32;
     static final int MAX_PARA = 16;
+    // ---- v3: edit-tolerant keys (SPEC §2.7, §3) ----
+    static final int VAR_MIN_WLEN = 24;             // kept text of a VAR-family candidate: wlen >= 24
+    static final int VAR_DROP_RATIO = 2;            // 2*D <= K: "drop one line" key (VARL or VARS)
+    static final int VAR_STRICT_RATIO = 4;          // 4*D <= K: VARS (may match a replaced line), else VARL
+    static final int VAR_EDGE = 16;                 // leave-one-out only for the first and last 16 lines
+    static final int MAX_VAR = 1 + 2 * VAR_EDGE + 1;    // full + leave-one-out + drop head and tail = 34
+    static final int BLOCK_MIN_WLEN = 16;
+    static final int MAX_BLOCK = 16;
+    static final int BLOCK_MIN_SHARED = 2;          // block containment: >= 2 shared block keys and
+    static final int BLOCK_CONTAIN_NUM = 4;         // 5 * shared >= 4 * min(block keys of both sides)
+    static final int BLOCK_CONTAIN_DEN = 5;
     static final int PURE_TEXT_MIN_CJK = 12;
     static final int PURE_TEXT_MIN_LETTERS = 24;
     static final int ACK_REMAINDER_MAX = 2;
@@ -80,8 +91,10 @@ public final class LuminaAdShield {
     public static final int MAX_HANDLES = 2000;
     public static final int MAX_LINKS_PER_ROW = 16;
     public static final int MAX_PENDING_PER_ROW = 16;
-    public static final int MAX_ROW_KEYS = 1 + 1 + 1 + 1 + 1 + 1 + 16;
-    public static final int MAX_RECORD_KEYS = 64;
+    public static final int MAX_ROW_KEYS = 1 + 1 + 1 + 1 + 1 + 1 + MAX_PARA + MAX_VAR + MAX_BLOCK;   // 72
+    public static final int MAX_RECORD_KEYS = 128;
+    /** A record starts with what v2 stored (exact keys, then paragraph keys, at most 64), then the v3 keys. */
+    public static final int RECORD_V2_KEYS = 64;
     public static final int MAX_RECORD_LINKS = 64;
     public static final long TOTAL_CAP_BYTES = 10L * 1024 * 1024;
     public static final int MAX_LOADED_CHATS = 8;
@@ -123,11 +136,34 @@ public final class LuminaAdShield {
     public static final int KIND_TMPL = 5;
     public static final int KIND_PARA = 6;
     public static final int KIND_CONTACT = 7;
-    static final String[] KIND_TAG = {null, "fwd", "media", "text", "cjk", "tmpl", "para", "contact"};
-    public static final String[] KIND_NAME = {null, "FWD", "MEDIA", "TEXT", "CJK", "TMPL", "PARA", "CONTACT"};
+    // v3: the VAR family (all three hash with the tag "var": the same payload has the same hash whatever its
+    // kind, so VAR / VARL / VARS are compared by hash) and BLOCK. They only link units of the same sender
+    // (SPEC §1 G(m)); against records they can only protect (endorsed / not an ad), never impersonate.
+    public static final int KIND_VAR = 8;
+    public static final int KIND_VARL = 9;
+    public static final int KIND_VARS = 10;
+    public static final int KIND_BLOCK = 11;
+    static final String[] KIND_TAG = {null, "fwd", "media", "text", "cjk", "tmpl", "para", "contact",
+            "var", "var", "var", "block"};
+    public static final String[] KIND_NAME = {null, "FWD", "MEDIA", "TEXT", "CJK", "TMPL", "PARA", "CONTACT",
+            "VAR", "VARL", "VARS", "BLOCK"};
 
+    /** FWD MEDIA TEXT CJK TMPL CONTACT: link any senders. */
     static boolean isExactKind(int kind) {
         return kind >= 1 && kind <= 7 && kind != KIND_PARA;
+    }
+
+    /** The kinds v2 had (1..7). */
+    static boolean isV2Kind(int kind) {
+        return kind >= 1 && kind <= 7;
+    }
+
+    static boolean isVarKind(int kind) {
+        return kind >= KIND_VAR && kind <= KIND_VARS;
+    }
+
+    static boolean isValidKind(int kind) {
+        return kind >= 1 && kind <= KIND_BLOCK;
     }
 
     // ---- feature / flag bits (SPEC §5.2) ----
@@ -149,6 +185,10 @@ public final class LuminaAdShield {
     static final int W_LONG_NUMBER = 1 << 12;
     static final int W_MASS_MENTION = 1 << 13;
     static final int W_EMAIL = 1 << 14;
+    /** v3: a privileged author's own strong feature (only trusted because pinned, or downgraded by forwarding the linked channel); implies PRIV. */
+    public static final int F_PRIV_STRONG = 1 << 9;
+    /** v3: privileged author (admin / creator / anonymous admin / the linked channel, auto-forwards); implies ENDORSING. */
+    public static final int F_PRIV = 1 << 15;
     public static final int F_HAS_TEXT = 1 << 16;
     public static final int F_MEDIA_ONLY = 1 << 17;      // computed at decide time only, never stored
     public static final int F_PURE_TEXT = 1 << 18;
@@ -169,7 +209,7 @@ public final class LuminaAdShield {
     public static final int ANON_KEEP = F_ACK | F_HAS_MEDIA_KEY | F_HAS_FWD_KEY | F_HAS_TEXT | F_TMPL_COND;
     public static final int STORED_FLAGS_MASK = STRONG_MASK | WEAK_MASK | F_HAS_TEXT | F_PURE_TEXT | F_ACK | F_REPLY_ME
             | F_MENTION_ME | F_IS_REPLY | F_ENDORSING | F_BOT | F_CONTACT | F_SELF | F_HAS_MEDIA_KEY | F_HAS_FWD_KEY
-            | F_ANON | F_TMPL_COND;
+            | F_ANON | F_TMPL_COND | F_PRIV | F_PRIV_STRONG;
 
     // ---- link kinds / feature names ----
     public static final String LK_INVITE = "invite";
@@ -192,6 +232,8 @@ public final class LuminaAdShield {
             CHAT_GROUP, CHAT_SUPERGROUP, CHAT_FORUM, CHAT_GIGAGROUP));
     private static final Set<String> ENDORSING_ROLES = new HashSet<String>(Arrays.asList(
             ROLE_ADMIN, ROLE_CREATOR, ROLE_ANON_ADMIN, ROLE_SELF));
+    private static final Set<String> PRIVILEGED_ROLES = new HashSet<String>(Arrays.asList(
+            ROLE_ADMIN, ROLE_CREATOR, ROLE_ANON_ADMIN));
 
     // =====================================================================================
     // Logging hook: the engine never logs message text, links, usernames or sender ids; only fixed
@@ -317,6 +359,7 @@ public final class LuminaAdShield {
 
         private Set<String> trustedTokens;
         private Set<String> trustedDomains;
+        private Set<String> pinnedOnlyTokens;
         private byte[] memberHashKey;
         private long[] memberHashesSorted;
         private HashSet<Long> memberHashSet;
@@ -421,27 +464,47 @@ public final class LuminaAdShield {
             }
             HashSet<String> tokens = new HashSet<String>();
             HashSet<String> domains = new HashSet<String>();
+            HashSet<String> own = new HashSet<String>();         // own / linked usernames + description
+            HashSet<String> pinned = new HashSet<String>();      // tokens of pinned messages
             if (!username.isEmpty()) {
                 tokens.add("@" + username);
+                own.add("@" + username);
             }
             if (!linkedChannelUsername.isEmpty()) {
                 tokens.add("@" + linkedChannelUsername);
+                own.add("@" + linkedChannelUsername);
             }
             ArrayList<String> texts = new ArrayList<String>();
             texts.add(description);
             texts.addAll(pinnedTexts);
-            for (String text : texts) {
-                Extraction ex = extractLinks(AdShieldTables.fold(text));
+            for (int i = 0; i < texts.size(); i++) {
+                Extraction ex = extractLinks(AdShieldTables.fold(texts.get(i)));
                 for (Link l : ex.links) {
                     normalizePhoneToken(l);
                     tokens.add(l.token);
+                    if (i == 0) {
+                        own.add(l.token);
+                    } else {
+                        pinned.add(l.token);
+                    }
                     if ((LK_URL.equals(l.kind) || LK_MAIL.equals(l.kind)) && !l.shortener && !l.domain.isEmpty()) {
                         domains.add(l.domain);
                     }
                 }
             }
+            pinned.removeAll(own);
+            pinnedOnlyTokens = pinned;
             trustedDomains = domains;
             trustedTokens = tokens;
+        }
+
+        /**
+         * v3 §6.12: tokens that are trusted only because a pinned message contains them (not the group's or
+         * the linked channel's username, not a token of the description).
+         */
+        Set<String> pinnedOnlyTokens() {
+            ensureTrusted();
+            return pinnedOnlyTokens;
         }
 
         Set<String> trustedTokens() {
@@ -488,6 +551,12 @@ public final class LuminaAdShield {
         public boolean exemptBots = true;
         public boolean exemptReplies = true;
         public boolean dryRun = false;          // UI-only: never changes the Decision
+        /**
+         * v3 per-group option 「連管理員和頻道的也收」 (SPEC §6.12), default off: repeats posted by the same
+         * privileged author (admin, creator, anonymous admin, the linked channel) are counted and folded like
+         * anyone else's. Off = exactly v2 (every privileged message is endorsed).
+         */
+        public boolean foldPrivilegedRepeats = false;
 
         public Settings() {
         }
@@ -640,6 +709,8 @@ public final class LuminaAdShield {
         public int cjkCount;
         public int letterCount;
         public List<String> paragraphs;
+        public List<String> contentLines;     // v3: text forms of the content lines (vectors / debugging)
+        public List<String> blocks;           // v3: all blocks, unfiltered (vectors / debugging)
         public List<Link> links;
         public List<String> linkFeatures;     // parallel to links: strong / weak / member / pending / none
         public List<String> strong;           // fixed strong features, sorted
@@ -653,6 +724,7 @@ public final class LuminaAdShield {
         public long senderKey;
         public boolean store;
         public boolean endorsing;
+        public boolean privileged;            // v3: F_PRIV
         public int mentionCount;
         public List<String> resolvedStrong;   // only filled by fingerprint() (vectors), not by the store
         public List<String> resolvedWeak;
@@ -900,6 +972,171 @@ public final class LuminaAdShield {
             }
         }
         return out;
+    }
+
+    /**
+     * v3 SPEC §2.1: before fold, delete every U+000D that is immediately followed by U+000A (CR LF -> LF; one
+     * pass, so "\r\r\n" -> "\r\n"; a lone CR stays and fold turns it into "\n"). Without this fold makes
+     * CR LF an empty line and every block of SPEC §2.7 falls apart. Neither CR nor LF can be half of a
+     * surrogate pair, so walking UTF-16 units gives exactly the per-code-point result.
+     */
+    public static String collapseCrlf(String s) {
+        if (s == null || s.indexOf('\r') < 0) {
+            return s;
+        }
+        int n = s.length();
+        StringBuilder sb = new StringBuilder(n);
+        for (int i = 0; i < n; i++) {
+            char c = s.charAt(i);
+            if (c == '\r' && i + 1 < n && s.charAt(i + 1) == '\n') {
+                continue;
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /** Splits on '\n' keeping empty pieces ("A\n\nB" -> ["A", "", "B"]; "" -> [""]). */
+    private static List<String> splitLines(String s) {
+        ArrayList<String> out = new ArrayList<String>();
+        int start = 0, n = s.length();
+        for (int i = 0; i < n; i++) {
+            if (s.charAt(i) == '\n') {
+                out.add(s.substring(start, i));
+                start = i + 1;
+            }
+        }
+        out.add(s.substring(start));
+        return out;
+    }
+
+    /**
+     * v3 SPEC §2.7: F' split on '\n'; the text form of each line; the non-empty ones are the content lines, in
+     * order, not deduplicated (their concatenation is T).
+     */
+    public static List<String> contentLines(String fNoLinks) {
+        ArrayList<String> out = new ArrayList<String>();
+        for (String line : splitLines(fNoLinks)) {
+            String t = AdShieldTables.textForm(line);
+            if (!t.isEmpty()) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    /** One key of the VAR family: {@link #KIND_VAR}, {@link #KIND_VARL} or {@link #KIND_VARS} and its payload. */
+    public static final class VarKey {
+        public final int kind;
+        public final String payload;
+
+        VarKey(int kind, String payload) {
+            this.kind = kind;
+            this.payload = payload;
+        }
+    }
+
+    /**
+     * v3 SPEC §2.7 VAR family. Candidates in order: the full text, each leave-one-out (only lines i < 16 or
+     * i >= n - 16), drop head and tail. For each: D = wlen dropped, K = wlen kept; K >= 24, then D == 0 -> VAR,
+     * 4D <= K -> VARS, 2D <= K -> VARL, else none. Deduplicated by payload in that order (at most 34).
+     */
+    public static List<VarKey> varKeys(List<String> lines) {
+        int n = lines.size();
+        int[] w = new int[n];
+        int total = 0;
+        for (int i = 0; i < n; i++) {
+            w[i] = AdShieldTables.wlen(lines.get(i));
+            total += w[i];
+        }
+        ArrayList<VarKey> out = new ArrayList<VarKey>();
+        HashSet<String> seen = new HashSet<String>();
+        emitVar(lines, w, total, -1, -1, out, seen);
+        if (n >= 2) {
+            for (int i = 0; i < n; i++) {
+                if (i < VAR_EDGE || i >= n - VAR_EDGE) {
+                    emitVar(lines, w, total, i, -1, out, seen);
+                }
+            }
+        }
+        if (n >= 3) {
+            emitVar(lines, w, total, 0, n - 1, out, seen);
+        }
+        return out;
+    }
+
+    private static void emitVar(List<String> lines, int[] w, int total, int dropA, int dropB, List<VarKey> out,
+                                Set<String> seen) {
+        int d = (dropA >= 0 ? w[dropA] : 0) + (dropB >= 0 ? w[dropB] : 0);
+        int kept = total - d;
+        if (kept < VAR_MIN_WLEN) {
+            return;
+        }
+        int kind;
+        if (d == 0) {
+            kind = KIND_VAR;
+        } else if (VAR_STRICT_RATIO * d <= kept) {
+            kind = KIND_VARS;
+        } else if (VAR_DROP_RATIO * d <= kept) {
+            kind = KIND_VARL;
+        } else {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i != dropA && i != dropB) {
+                sb.append(lines.get(i));
+            }
+        }
+        String p = sb.toString();
+        if (seen.add(p)) {
+            out.add(new VarKey(kind, p));
+        }
+    }
+
+    /**
+     * v3 SPEC §2.7: blocks = runs of content lines separated by lines whose text form is empty (blank lines,
+     * lines of only emoji / symbols / removed links); a block's value is its lines' text forms concatenated.
+     * All blocks, unfiltered and not deduplicated.
+     */
+    public static List<String> blocks(String fNoLinks) {
+        ArrayList<String> out = new ArrayList<String>();
+        StringBuilder cur = null;
+        for (String line : splitLines(fNoLinks)) {
+            String t = AdShieldTables.textForm(line);
+            if (!t.isEmpty()) {
+                if (cur == null) {
+                    cur = new StringBuilder();
+                }
+                cur.append(t);
+            } else if (cur != null) {
+                out.add(cur.toString());
+                cur = null;
+            }
+        }
+        if (cur != null) {
+            out.add(cur.toString());
+        }
+        return out;
+    }
+
+    /** BLOCK keys: blocks with wlen >= 16, deduplicated in order, at most 16; none at all when fewer than 2. */
+    public static List<String> blockPayloads(List<String> bs) {
+        ArrayList<String> out = new ArrayList<String>();
+        for (String b : bs) {
+            if (AdShieldTables.wlen(b) >= BLOCK_MIN_WLEN && !out.contains(b)) {
+                out.add(b);
+                if (out.size() == MAX_BLOCK) {
+                    break;
+                }
+            }
+        }
+        return out.size() >= 2 ? out : Collections.<String>emptyList();
+    }
+
+    /** Block containment: >= 2 shared and 5 * shared >= 4 * min(nA, nB). */
+    static boolean blockContained(int shared, int nA, int nB) {
+        return shared >= BLOCK_MIN_SHARED && BLOCK_CONTAIN_DEN * shared >= BLOCK_CONTAIN_NUM * Math.min(nA, nB);
     }
 
     // =====================================================================================
@@ -1785,6 +2022,53 @@ public final class LuminaAdShield {
 
     private static final Sender EMPTY_SENDER = new Sender();
 
+    /** SPEC §5.1 link feature table, in order: strong / weak / member / pending / none (interned constants). */
+    private static String linkFeature(Link l, Set<String> trustedTokens, Set<String> trustedDomains, boolean chanFwd,
+                                      String fwdUsername, String selfUsername, String senderUsername,
+                                      Set<String> addressed) {
+        if (trustedTokens.contains(l.token)) {
+            return FEAT_NONE;
+        }
+        if (LK_INVITE.equals(l.kind)) {
+            return chanFwd ? FEAT_WEAK : FEAT_STRONG;
+        }
+        if (LK_HANDLE.equals(l.kind)) {
+            String h = l.token.startsWith("@") ? l.token.substring(1) : "";
+            if (!h.isEmpty() && h.equals(fwdUsername)) {
+                return FEAT_NONE;                        // the forward source's own handle
+            }
+            if (!h.isEmpty() && h.equals(selfUsername)) {
+                return FEAT_NONE;                        // @me
+            }
+            if (chanFwd) {
+                return FEAT_WEAK;                        // part of the channel post
+            }
+            if (!h.isEmpty() && h.equals(senderUsername)) {
+                return FEAT_STRONG;                      // self promotion
+            }
+            if (h.isEmpty()) {
+                return FEAT_STRONG;                      // uid: / tgc:
+            }
+            if (addressed.contains(h)) {
+                return FEAT_MEMBER;                      // leading salutation
+            }
+            return FEAT_PENDING;                         // known member? decided at decide time
+        }
+        if (LK_URL.equals(l.kind)) {
+            if (l.shortener) {
+                return chanFwd ? FEAT_WEAK : FEAT_STRONG;
+            }
+            return trustedDomains.contains(l.domain) ? FEAT_NONE : FEAT_WEAK;
+        }
+        if (LK_PHONE.equals(l.kind) || LK_ACCT.equals(l.kind)) {
+            return FEAT_STRONG;
+        }
+        if (LK_MAIL.equals(l.kind)) {
+            return trustedDomains.contains(l.domain) ? FEAT_NONE : FEAT_WEAK;
+        }
+        return FEAT_NONE;
+    }
+
     /**
      * SPEC §3-§5: one message -> normalised text, links, features, fingerprint keys.
      * The stored result (keys/flags/linkHashes/pending) depends only on (msg, ctx, key); knownHandles
@@ -1811,7 +2095,7 @@ public final class LuminaAdShield {
         boolean isContact = mkind.equals("contact");
         List<Entity> entities = msg.entities != null ? msg.entities : Collections.<Entity>emptyList();
 
-        String F = AdShieldTables.fold(msg.text != null ? msg.text : "");
+        String F = AdShieldTables.fold(collapseCrlf(msg.text != null ? msg.text : ""));     // v3: CR LF -> LF first
         Extraction ex = extractLinks(F);
         ArrayList<Link> links = new ArrayList<Link>(ex.links);
         for (Entity ent : entities) {
@@ -1858,6 +2142,8 @@ public final class LuminaAdShield {
         int wl = AdShieldTables.wlen(T);
         int[] lc = letterCounts(T);
         List<String> paras = paragraphs(ex.foldNoLinks);
+        List<String> clines = contentLines(ex.foldNoLinks);
+        List<String> blks = blocks(ex.foldNoLinks);
 
         // ---- features ----
         Set<String> trustedTokens = ctx.trustedTokens();
@@ -1868,43 +2154,8 @@ public final class LuminaAdShield {
         TreeSet<String> weak = new TreeSet<String>(CODE_POINT_ORDER);
         ArrayList<String> features = new ArrayList<String>(links.size());
         for (Link l : links) {
-            String feat = FEAT_NONE;
-            if (trustedTokens.contains(l.token)) {
-                feat = FEAT_NONE;
-            } else if (LK_INVITE.equals(l.kind)) {
-                feat = chanFwd ? FEAT_WEAK : FEAT_STRONG;
-            } else if (LK_HANDLE.equals(l.kind)) {
-                String h = l.token.startsWith("@") ? l.token.substring(1) : "";
-                if (!h.isEmpty() && h.equals(fwdUsername)) {
-                    feat = FEAT_NONE;                        // the forward source's own handle
-                } else if (!h.isEmpty() && h.equals(ctx.selfUsername)) {
-                    feat = FEAT_NONE;                        // @me
-                } else if (chanFwd) {
-                    feat = FEAT_WEAK;                        // part of the channel post
-                } else if (!h.isEmpty() && h.equals(senderUsername)) {
-                    feat = FEAT_STRONG;                      // self promotion
-                } else if (h.isEmpty()) {
-                    feat = FEAT_STRONG;                      // uid: / tgc:
-                } else if (addressed.contains(h)) {
-                    feat = FEAT_MEMBER;                      // leading salutation
-                } else {
-                    feat = FEAT_PENDING;                     // known member? decided at decide time
-                }
-            } else if (LK_URL.equals(l.kind)) {
-                if (l.shortener) {
-                    feat = chanFwd ? FEAT_WEAK : FEAT_STRONG;
-                } else if (trustedDomains.contains(l.domain)) {
-                    feat = FEAT_NONE;
-                } else {
-                    feat = FEAT_WEAK;
-                }
-            } else if (LK_PHONE.equals(l.kind)) {
-                feat = FEAT_STRONG;
-            } else if (LK_ACCT.equals(l.kind)) {
-                feat = FEAT_STRONG;
-            } else if (LK_MAIL.equals(l.kind)) {
-                feat = trustedDomains.contains(l.domain) ? FEAT_NONE : FEAT_WEAK;
-            }
+            String feat = linkFeature(l, trustedTokens, trustedDomains, chanFwd, fwdUsername, ctx.selfUsername,
+                    senderUsername, addressed);
             features.add(feat);
             if (feat == FEAT_STRONG) {
                 if (LK_INVITE.equals(l.kind)) {
@@ -1963,7 +2214,7 @@ public final class LuminaAdShield {
             }
         }
 
-        // ---- fingerprint keys: FWD MEDIA TEXT CJK TMPL CONTACT PARA... ----
+        // ---- fingerprint keys: FWD MEDIA TEXT CJK TMPL CONTACT PARA... then v3 VAR family... BLOCK... ----
         ArrayList<Integer> kinds = new ArrayList<Integer>();
         ArrayList<String> payloads = new ArrayList<String>();
         String mediaPayload = "";
@@ -2037,6 +2288,14 @@ public final class LuminaAdShield {
             kinds.add(KIND_PARA);
             payloads.add(p);
         }
+        for (VarKey vk : varKeys(clines)) {         // v3 keys come last: v2 keys and their order are unchanged
+            kinds.add(vk.kind);
+            payloads.add(vk.payload);
+        }
+        for (String p : blockPayloads(blks)) {
+            kinds.add(KIND_BLOCK);
+            payloads.add(p);
+        }
         int nk = kinds.size();
         int[] keyKinds = new int[nk];
         String[] keyPayloads = new String[nk];
@@ -2068,10 +2327,40 @@ public final class LuminaAdShield {
         long[] pending = dedupeHashes(pend, MAX_PENDING_PER_ROW);
 
         // ---- flags ----
-        boolean endorsing = (ENDORSING_ROLES.contains(role) && !(fwd != null && !chanFwd))   // forwarding others: no
+        boolean fwdOther = fwd != null && !chanFwd;             // forwarding a user / hidden source
+        boolean sentAsLinked = ROLE_CHANNEL.equals(role) && ctx.linkedChannelId != 0 && senderId == ctx.linkedChannelId;
+        boolean endorsing = (ENDORSING_ROLES.contains(role) && !fwdOther)   // forwarding others: no
                 || msg.pinned || msg.autoForward
                 || (fwd != null && ctx.linkedChannelId != 0 && fwd.fromId == ctx.linkedChannelId)
-                || (ROLE_CHANNEL.equals(role) && ctx.linkedChannelId != 0 && senderId == ctx.linkedChannelId);
+                || sentAsLinked;
+        // v3: privileged author = admin / creator / anonymous admin (except forwarding others), sent as the linked
+        // channel, or an auto-forward. Never self; not a pinned member message or a member forwarding the channel.
+        boolean privileged = !ROLE_SELF.equals(role)
+                && ((PRIVILEGED_ROLES.contains(role) && !fwdOther) || msg.autoForward || sentAsLinked);
+        // v3 §6.12: forwarding the group's linked channel (auto-forwards included): the content's author is that channel
+        boolean ownFwd = chanFwd && ctx.linkedChannelId != 0 && fwd.fromId == ctx.linkedChannelId;
+        // The privileged author's own strong features: links that are trusted only because they are pinned, or
+        // that are downgraded only because the post is the linked channel's own. With the option on they count.
+        boolean privStrong = false;
+        if (privileged) {
+            HashSet<String> ownView = new HashSet<String>(trustedTokens);
+            ownView.removeAll(ctx.pinnedOnlyTokens());
+            boolean ownChanFwd = chanFwd && !ownFwd;
+            for (int i = 0; i < links.size() && !privStrong; i++) {
+                String feat = features.get(i);
+                if (feat == FEAT_STRONG || feat == FEAT_PENDING) {
+                    continue;
+                }
+                String f2 = linkFeature(links.get(i), ownView, trustedDomains, ownChanFwd, fwdUsername,
+                        ctx.selfUsername, senderUsername, addressed);
+                if (f2 == FEAT_STRONG || f2 == FEAT_PENDING) {
+                    privStrong = true;
+                }
+            }
+            if (ownFwd && (!buttons.isEmpty() || msg.viaBot)) {
+                privStrong = true;
+            }
+        }
         int flags = 0;
         for (int b = 0; b < STRONG_NAMES.length; b++) {
             if (strong.contains(STRONG_NAMES[b])) {
@@ -2114,6 +2403,12 @@ public final class LuminaAdShield {
         if (endorsing) {
             flags |= F_ENDORSING;
         }
+        if (privileged) {
+            flags |= F_PRIV;
+        }
+        if (privStrong) {
+            flags |= F_PRIV_STRONG;
+        }
         if (ROLE_BOT.equals(role)) {
             flags |= F_BOT;
         }
@@ -2127,7 +2422,8 @@ public final class LuminaAdShield {
         Fingerprint fp = new Fingerprint();
         fp.store = nk > 0 && (!strong.isEmpty() || !weak.isEmpty() || pending.length > 0
                 || (flags & (F_HAS_MEDIA_KEY | F_HAS_FWD_KEY | F_PURE_TEXT)) != 0 || endorsing);
-        fp.senderKey = senderKey(key, senderId);
+        // the author: a privileged forward of the linked channel's post is the channel's own repeat (§6.12)
+        fp.senderKey = senderKey(key, privileged && ownFwd ? ctx.linkedChannelId : senderId);
         fp.fold = F;
         fp.foldNoLinks = ex.foldNoLinks;
         fp.text = T;
@@ -2136,6 +2432,8 @@ public final class LuminaAdShield {
         fp.cjkCount = lc[0];
         fp.letterCount = lc[1];
         fp.paragraphs = paras;
+        fp.contentLines = clines;
+        fp.blocks = blks;
         fp.links = links;
         fp.linkFeatures = features;
         fp.strong = new ArrayList<String>(strong);
@@ -2147,6 +2445,7 @@ public final class LuminaAdShield {
         fp.pending = pending;
         fp.flags = flags;
         fp.endorsing = endorsing;
+        fp.privileged = privileged;
         fp.mentionCount = mentionIds.size();
 
         if (withResolved) {

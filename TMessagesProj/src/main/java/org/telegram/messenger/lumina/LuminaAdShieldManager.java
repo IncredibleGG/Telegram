@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledFuture;
 /**
  * Glue between the AdShield engine and the app (stage 1 of the Android integration):
  * <ul>
- *   <li>global settings (in the "luminagram" prefs) and per-group modes (in the separate
+ *   <li>global settings (in the "luminagram" prefs) and per-group modes and options (in the separate
  *       "luminagram_adshield" prefs file, together with the Keystore-wrapped key; that file and both
  *       file roots are excluded from backups and device transfer);</li>
  *   <li>account objects keyed by userId, created only while the feature is effectively on for a
@@ -64,6 +64,8 @@ public final class LuminaAdShieldManager {
     // ---- own prefs file (excluded from backups) ----
     static final String PREFS_NAME = "luminagram_adshield";
     private static final String PREF_MODES = "modes";
+    /** Per-group 「連管理員和頻道的也收」 (SPEC §6.12 foldPrivilegedRepeats): {"<slot>:<dialogId>": 1}, default off. */
+    private static final String PREF_PRIV_FOLD = "privFold";
 
     static final String ROOT_DIR = "luminagram_adshield";
     static final String IMG_DIR = "luminagram_adshield_img";
@@ -116,13 +118,14 @@ public final class LuminaAdShieldManager {
         LuminaConfig.putBoolean(KEY_EXPLAINED, true);
     }
 
-    /** A fresh engine settings object (callers own it). */
-    static LuminaAdShield.Settings settings() {
+    /** A fresh engine settings object for one group (callers own it): the global settings + the group's options. */
+    static LuminaAdShield.Settings settings(int slot, long dialogId) {
         LuminaAdShield.Settings s = new LuminaAdShield.Settings(getSensitivity());
         s.exemptContacts = isExemptContacts();
         s.exemptBots = isExemptBots();
         s.exemptReplies = isExemptReplies();
         s.dryRun = isTrial();
+        s.foldPrivilegedRepeats = getFoldPrivileged(slot, dialogId);
         return s;
     }
 
@@ -169,8 +172,16 @@ public final class LuminaAdShieldManager {
     }
 
     private static JSONObject readModes() {
+        return readJson(PREF_MODES);
+    }
+
+    private static void writeModes(JSONObject o) {
+        writeJson(PREF_MODES, o);
+    }
+
+    private static JSONObject readJson(String pref) {
         SharedPreferences p = prefs();
-        String raw = p != null ? p.getString(PREF_MODES, null) : null;
+        String raw = p != null ? p.getString(pref, null) : null;
         if (raw != null && !raw.isEmpty()) {
             try {
                 return new JSONObject(raw);
@@ -180,17 +191,17 @@ public final class LuminaAdShieldManager {
         return new JSONObject();
     }
 
-    private static void writeModes(JSONObject o) {
+    private static void writeJson(String pref, JSONObject o) {
         SharedPreferences p = prefs();
         if (p == null) {
             return;
         }
         if (o.length() == 0) {
-            if (p.contains(PREF_MODES)) {
-                p.edit().remove(PREF_MODES).apply();
+            if (p.contains(pref)) {
+                p.edit().remove(pref).apply();
             }
         } else {
-            p.edit().putString(PREF_MODES, o.toString()).apply();
+            p.edit().putString(pref, o.toString()).apply();
         }
     }
 
@@ -219,6 +230,27 @@ public final class LuminaAdShieldManager {
         onSettingsChanged();
     }
 
+    /** Per-group 「連管理員和頻道的也收」 (default off). Only takes effect while the feature is on for the group. */
+    public static boolean getFoldPrivileged(int slot, long dialogId) {
+        return readJson(PREF_PRIV_FOLD).optInt(modeKey(slot, dialogId), 0) == 1;
+    }
+
+    /** Stored next to the group's mode (cleared with it); sessions re-decide (SPEC §9.2: a setting change re-decides the chat). */
+    public static void setFoldPrivileged(int slot, long dialogId, boolean on) {
+        JSONObject o = readJson(PREF_PRIV_FOLD);
+        String k = modeKey(slot, dialogId);
+        try {
+            if (on) {
+                o.put(k, 1);
+            } else {
+                o.remove(k);
+            }
+        } catch (Throwable ignore) {
+        }
+        writeJson(PREF_PRIV_FOLD, o);
+        onSettingsChanged();
+    }
+
     private static boolean hasModeOn(int slot) {
         JSONObject o = readModes();
         String prefix = slot + ":";
@@ -231,12 +263,18 @@ public final class LuminaAdShieldManager {
         return false;
     }
 
+    /** Per-group modes and per-group options of one slot (slot < 0: every slot). */
     private static void clearModes(int slot) {
+        clearPerGroup(PREF_MODES, slot);
+        clearPerGroup(PREF_PRIV_FOLD, slot);
+    }
+
+    private static void clearPerGroup(String pref, int slot) {
         SharedPreferences p = prefs();
-        if (p == null || !p.contains(PREF_MODES)) {
+        if (p == null || !p.contains(pref)) {
             return;
         }
-        JSONObject o = readModes();
+        JSONObject o = readJson(pref);
         String prefix = slot + ":";
         ArrayList<String> drop = new ArrayList<String>();
         for (Iterator<String> it = o.keys(); it.hasNext(); ) {
@@ -248,7 +286,7 @@ public final class LuminaAdShieldManager {
         for (String k : drop) {
             o.remove(k);
         }
-        writeModes(o);
+        writeJson(pref, o);
     }
 
     /** Global on and the group not set to off, or the group set to on (any thread). */
@@ -392,7 +430,8 @@ public final class LuminaAdShieldManager {
 
     /**
      * Logout of one account (MessagesController.performLogout, every logout type; also reached by the panic
-     * wipe, which logs every account out first). Must be called before the UserConfig is cleared.
+     * wipe, which logs every account out first): its per-group modes and options go too. Must be called before
+     * the UserConfig is cleared.
      */
     public static void onLogout(int slot, final long userId) {
         try {
@@ -408,7 +447,7 @@ public final class LuminaAdShieldManager {
     }
 
     /**
-     * 清除本機資料 (settings page): ForgetAll for every logged-in account, every per-group mode, every
+     * 清除本機資料 (settings page): ForgetAll for every logged-in account, every per-group mode and option, every
      * similar-image table. The feature settings themselves stay as they are.
      */
     public static void clearLocalData() {

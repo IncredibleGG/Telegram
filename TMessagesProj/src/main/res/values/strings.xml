@@ -11999,6 +11999,8 @@
     <string name="LuminaAdShieldChatOn">On in this group</string>
     <string name="LuminaAdShieldChatOff">Off in this group</string>
     <string name="LuminaAdShieldChatFolded7d">%1$d folded in the last 7 days</string>
+    <string name="LuminaAdShieldChatPrivFold">Also fold admins and the group\'s channel</string>
+    <string name="LuminaAdShieldChatPrivFoldInfo">Repeats posted by the owner, admins or the group\'s channel themselves fold too; announcements reposted by members still never fold.</string>
     <string name="LuminaAdShieldFoldMany">%1$d repeated messages folded (possible ad) · Tap to show</string>
     <string name="LuminaAdShieldFoldOne">1 repeated message folded (possible ad, appearance #%1$d in 7 days) · Tap to show</string>
     <string name="LuminaAdShieldFoldOnePlain">1 repeated message folded (possible ad) · Tap to show</string>

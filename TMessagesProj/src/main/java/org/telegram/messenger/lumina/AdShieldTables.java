@@ -1,4 +1,4 @@
-// 自動產生，請勿手改。產生器：adshield/gen/gen_tables.py  tablesVersion=f40fc4cc  algoVersion=2  unicode=13.0.0
+// 自動產生，請勿手改。產生器：adshield/gen/gen_tables.py  tablesVersion=25528dcc  algoVersion=3  unicode=13.0.0
 // 授權：見 adshield/data/tables.json 的 "licenses"（UCD=Unicode License v3；其餘 GPL-3.0-or-later）
 package org.telegram.messenger.lumina;
 
@@ -8,10 +8,10 @@ import java.util.Arrays;
 public final class AdShieldTables {
     private AdShieldTables() {}
 
-    public static final String TABLES_VERSION = "f40fc4cc";
+    public static final String TABLES_VERSION = "25528dcc";
     /** 檔頭用的數值版本（u32 的位元樣式；可能是負的 int，不要用 Integer.parseInt 解析字串版）。 */
-    public static final int TABLES_VERSION_U32 = (int) 0xf40fc4ccL;
-    public static final int ALGO_VERSION = 2;
+    public static final int TABLES_VERSION_U32 = (int) 0x25528dccL;
+    public static final int ALGO_VERSION = 3;
 
     // ---- 原始資料（十六進位 ASCII，於 class 初始化時解析，避開 64KB 方法上限）----
     private static final String[] DROP_DATA = {

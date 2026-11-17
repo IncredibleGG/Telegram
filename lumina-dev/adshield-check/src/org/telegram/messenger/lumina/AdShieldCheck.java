@@ -2,11 +2,12 @@
  * LuminaGram - AdShield checker (dev tool; NOT compiled by the app build).
  * Copyright (C) 2026 LuminaGram contributors. Licensed under GPL-3.0-or-later.
  *
- * Runs the shared AdShield conformance suite against the Android Java port:
- *   SipHash 77, normalize 55, fingerprint 57 (every SPEC §10.2 field), all 97 scenarios exactly like
+ * Runs the shared AdShield conformance suite (SPEC v3) against the Android Java port:
+ *   SipHash 77, normalize 55, fingerprint 76 (every SPEC §10.2 field), all 138 scenarios exactly like
  *   ref/test_adshield.py run_scenario, shuffled load order, serialize round trip, every SPEC §8.3
- *   rejection rule on crafted blobs, no plaintext in the blob, ForgetAll / orphans / total cap, plus
- *   the TSV vectors and a decide() timing on a 3000-row chat.
+ *   rejection rule on crafted blobs, no plaintext in the blob, ForgetAll / orphans / total cap, the v3
+ *   unit tests of ref/test_adshield.py (TestV3, TestV3Fixes), plus the TSV vectors and decide() timings
+ *   on 3000-row chats.
  * Same package as the engine (separate source root) for package-private access to internals.
  * See ../../../../../README.md and ../../../../../run.sh.
  */
@@ -253,6 +254,7 @@ public final class AdShieldCheck {
             st.exemptBots = bool(s, "exemptBots", true);
             st.exemptReplies = bool(s, "exemptReplies", true);
             st.dryRun = bool(s, "dryRun", false);
+            st.foldPrivilegedRepeats = bool(s, "foldPrivilegedRepeats", false);
         }
         return st;
     }
@@ -286,7 +288,10 @@ public final class AdShieldCheck {
         rejection();
         accountTests();
         robustness();
+        v3Rules();
+        userCase();
         perf();
+        perfV3();
 
         System.out.println();
         System.out.println("AdShield Java checker - tables " + AdShieldTables.TABLES_VERSION + ", algo "
@@ -490,7 +495,7 @@ public final class AdShieldCheck {
 
     // ------------------------------------------------------------------ fingerprint 57
     static void fingerprints() throws IOException {
-        section("fingerprint-57");
+        section("fingerprint-76");
         Map<String, Object> v = obj(load("vectors/fingerprint_vectors.json"));
         byte[] key = fromHex(str(v, "key"));
         ChatContext ctx = ctx(obj(v.get("context")));
@@ -509,6 +514,8 @@ public final class AdShieldCheck {
             eq(lng(e, "cjkCount", -1), (long) fp.cjkCount, id + " cjkCount");
             eq(lng(e, "otherLetterCount", -1), (long) fp.letterCount, id + " otherLetterCount");
             eq(strList(e.get("paragraphs")), fp.paragraphs, id + " paragraphs");
+            eq(strList(e.get("contentLines")), fp.contentLines, id + " contentLines");
+            eq(strList(e.get("blocks")), fp.blocks, id + " blocks");
             ArrayList<String> wantLinks = new ArrayList<String>();
             for (Object lo : list(e.get("links"))) {
                 Map<String, Object> l = obj(lo);
@@ -545,6 +552,7 @@ public final class AdShieldCheck {
             eq(str(e, "senderKey"), hex(fp.senderKey), id + " senderKey");
             eq(bool(e, "store", false), fp.store, id + " store");
             eq(bool(e, "endorsing", false), fp.endorsing, id + " endorsing");
+            eq(bool(e, "privileged", false), fp.privileged, id + " privileged");
             caseEnd();
         }
     }
@@ -636,7 +644,7 @@ public final class AdShieldCheck {
     }
 
     static void scenarios() throws IOException {
-        section("scenarios-97");
+        section("scenarios-138");
         List<Object> scs = list(obj(load("corpus/scenarios.json")).get("scenarios"));
         int expects = 0;
         for (Object o : scs) {
@@ -936,12 +944,16 @@ public final class AdShieldCheck {
             cases.put("bad kind", c -> {
                 LuminaAdShieldStore.Row r = c.rows.firstEntry().getValue();
                 r.keys = Arrays.copyOf(r.keys, r.keys.length + 1);
-                r.keys[r.keys.length - 1] = new Key(9, 1);
+                r.keys[r.keys.length - 1] = new Key(12, 1);       // 9..11 are VARL / VARS / BLOCK since v3
             });
+            cases.put("PRIV without ENDORSING", c -> c.rows.firstEntry().getValue().flags |= LuminaAdShield.F_PRIV);
+            cases.put("PRIV_STRONG without PRIV", c -> c.rows.firstEntry().getValue().flags |= LuminaAdShield.F_PRIV_STRONG);
             cases.put("anon flag mismatch", c -> c.rows.firstEntry().getValue().flags |= LuminaAdShield.F_ANON);
             cases.put("unknown flag bit", c -> c.rows.firstEntry().getValue().flags |= 1 << 31);
             cases.put("record stamp", c -> c.records.add(new LuminaAdShieldStore.Record(2, -5, 0, new Key[0], new long[0])));
             cases.put("record kind", c -> c.records.add(new LuminaAdShieldStore.Record(3, 5, 0, new Key[0], new long[0])));
+            cases.put("notAd with author", c -> c.records.add(new LuminaAdShieldStore.Record(2, 5, 0, 7, new Key[0], new long[0])));
+            cases.put("notAd with msgKey", c -> c.records.add(new LuminaAdShieldStore.Record(2, 5, 9, new Key[0], new long[0])));
             cases.put("handle first>last", c -> c.handles.put(123L, new LuminaAdShieldStore.HandleInfo(10, 5, 10)));
             for (Map.Entry<String, StoreMut> e : cases.entrySet()) {
                 Filled f = filled(new LuminaAdShieldAccount(1, TEST_KEY, null));
@@ -1036,17 +1048,19 @@ public final class AdShieldCheck {
                 results.add(sb.toString());
             }
             eq(1, new HashSet<String>(results).size(), "not-ad record identical for 6 load orders");
-            eq(LuminaAdShield.MAX_RECORD_KEYS, rec.keys.length, "not-ad record capped at 64 keys");
-            boolean exactFirst = true;
-            boolean seenPara = false;
+            eq(LuminaAdShield.MAX_RECORD_KEYS, rec.keys.length, "not-ad record capped at 128 keys");
+            boolean ordered = true;
+            int lastRank = 0, v2Keys = 0;
             for (Key kk : rec.keys) {
-                if (kk.kind == LuminaAdShield.KIND_PARA) {
-                    seenPara = true;
-                } else if (seenPara) {
-                    exactFirst = false;
+                int rank = LuminaAdShield.isExactKind(kk.kind) ? 0 : kk.kind == LuminaAdShield.KIND_PARA ? 1 : 2;
+                if (rank < lastRank) {
+                    ordered = false;
                 }
+                lastRank = rank;
+                v2Keys += LuminaAdShield.isV2Kind(kk.kind) ? 1 : 0;
             }
-            check(exactFirst, "exact keys before paragraph keys");
+            check(ordered, "record keys: v2 exact keys, then paragraph keys, then v3 keys");
+            eq(LuminaAdShield.RECORD_V2_KEYS, v2Keys, "the record starts with the 64 keys v2 would have stored");
             Fingerprint fp3 = LuminaAdShield.fingerprint(msgs.get(2), c, TEST_KEY);
             HashSet<Key> recKeys = new HashSet<Key>(Arrays.asList(rec.keys));
             boolean own = true;
@@ -1102,7 +1116,7 @@ public final class AdShieldCheck {
 
     static final class RecSpec {
         int kind;
-        long stamp, msgKey;
+        long stamp, msgKey, author;
         int[] kinds = new int[0];
         long[] hashes = new long[0];
         long[] links = new long[0];
@@ -1123,7 +1137,7 @@ public final class AdShieldCheck {
     static final class Blob {
         static final long CHAT = -1001234L;
         byte[] magic = {'L', 'G', 'A', 'S'};
-        int fv = 2, av = 2;
+        int fv = 3, av = 3;
         long tv = AdShieldTables.TABLES_VERSION_U32 & 0xFFFFFFFFL;
         Long keyCheck, chatTag, nRows, nRec, nHandles;
         long nextRid = 100;
@@ -1171,6 +1185,7 @@ public final class AdShieldCheck {
                 u8(b, r.kind);
                 le(b, r.stamp, 8);
                 le(b, r.msgKey, 8);
+                le(b, r.author, 8);
                 u8(b, r.kinds.length);
                 for (int i = 0; i < r.kinds.length; i++) {
                     u8(b, r.kinds[i]);
@@ -1293,10 +1308,10 @@ public final class AdShieldCheck {
         LinkedHashMap<String, BlobMut> accept = new LinkedHashMap<String, BlobMut>();
         // header
         reject.put("magic", b -> b.magic = new byte[]{'L', 'G', 'A', 'X'});
-        reject.put("formatVersion 1", b -> b.fv = 1);
-        reject.put("formatVersion 3", b -> b.fv = 3);
-        reject.put("algoVersion 1", b -> b.av = 1);
-        reject.put("algoVersion 3", b -> b.av = 3);
+        reject.put("formatVersion 2", b -> b.fv = 2);
+        reject.put("formatVersion 4", b -> b.fv = 4);
+        reject.put("algoVersion 2", b -> b.av = 2);
+        reject.put("algoVersion 4", b -> b.av = 4);
         reject.put("tablesVersion", b -> b.tv ^= 1);
         reject.put("keyCheck", b -> b.keyCheck = AdShieldTables.keyedHash(new byte[16], "check", "LGAS"));
         reject.put("chatTag", b -> b.chatTag = AdShieldTables.keyedHash(TEST_KEY, "chat", "-1001235"));
@@ -1390,43 +1405,57 @@ public final class AdShieldCheck {
         accept.put("two anonymous rows", b -> b.rows.add(anonRow()));
         reject.put("duplicate handle", b -> b.handles.add(new HSpec(0xfedcba9876543210L, 800, 1000, 2000)));
         // flags
-        for (final int bit : new int[]{9, 15, 17, 31}) {
+        for (final int bit : new int[]{17, 31}) {
             reject.put("flags reserved bit " + bit, b -> b.rows.get(0).flags |= 1L << bit);
         }
+        reject.put("flags PRIV without ENDORSING", b -> b.rows.get(0).flags |= LuminaAdShield.F_PRIV);
+        reject.put("flags PRIV_STRONG without PRIV", b -> b.rows.get(0).flags |= LuminaAdShield.F_PRIV_STRONG);
+        reject.put("flags PRIV_STRONG + ENDORSING without PRIV",
+                b -> b.rows.get(0).flags |= LuminaAdShield.F_PRIV_STRONG | LuminaAdShield.F_ENDORSING);
+        accept.put("flags PRIV + ENDORSING", b -> b.rows.get(0).flags |= LuminaAdShield.F_PRIV | LuminaAdShield.F_ENDORSING);
+        accept.put("flags PRIV_STRONG + PRIV + ENDORSING", b -> b.rows.get(0).flags |=
+                LuminaAdShield.F_PRIV_STRONG | LuminaAdShield.F_PRIV | LuminaAdShield.F_ENDORSING);
         // list limits
-        reject.put("row nKeys 23", b -> {
-            b.rows.get(0).kinds = fill(23, 6);
-            b.rows.get(0).hashes = seq(23, 10);
+        reject.put("row nKeys 73", b -> {
+            b.rows.get(0).kinds = fill(73, 6);
+            b.rows.get(0).hashes = seq(73, 10);
         });
-        accept.put("row nKeys 22", b -> {
-            b.rows.get(0).kinds = fill(22, 6);
-            b.rows.get(0).hashes = seq(22, 10);
+        accept.put("row nKeys 72", b -> {
+            b.rows.get(0).kinds = fill(72, 6);
+            b.rows.get(0).hashes = seq(72, 10);
         });
         reject.put("row nLinks 17", b -> b.rows.get(0).links = seq(17, 50));
         accept.put("row nLinks 16", b -> b.rows.get(0).links = seq(16, 50));
         reject.put("row nPend 17", b -> b.rows.get(0).pend = seq(17, 70));
         accept.put("row nPend 16", b -> b.rows.get(0).pend = seq(16, 70));
-        reject.put("record nKeys 65", b -> {
-            b.recs.get(0).kinds = fill(65, 6);
-            b.recs.get(0).hashes = seq(65, 10);
+        reject.put("record nKeys 129", b -> {
+            b.recs.get(0).kinds = fill(129, 6);
+            b.recs.get(0).hashes = seq(129, 10);
         });
-        accept.put("record nKeys 64", b -> {
-            b.recs.get(0).kinds = fill(64, 6);
-            b.recs.get(0).hashes = seq(64, 10);
+        accept.put("record nKeys 128", b -> {
+            b.recs.get(0).kinds = fill(128, 6);
+            b.recs.get(0).hashes = seq(128, 10);
         });
         reject.put("record nLinks 65", b -> b.recs.get(1).links = seq(65, 90));
         accept.put("record nLinks 64", b -> b.recs.get(1).links = seq(64, 90));
         // kinds
         reject.put("row key kind 0", b -> b.rows.get(0).kinds[0] = 0);
-        reject.put("row key kind 8", b -> b.rows.get(0).kinds[1] = 8);
-        accept.put("row key kinds 1..7", b -> {
-            b.rows.get(0).kinds = new int[]{1, 2, 3, 4, 5, 6, 7};
-            b.rows.get(0).hashes = seq(7, 30);
+        reject.put("row key kind 12", b -> b.rows.get(0).kinds[1] = 12);
+        accept.put("row key kinds 1..11", b -> {
+            b.rows.get(0).kinds = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+            b.rows.get(0).hashes = seq(11, 30);
         });
         reject.put("record key kind 0", b -> b.recs.get(0).kinds[0] = 0);
-        reject.put("record key kind 8", b -> b.recs.get(1).kinds[0] = 8);
+        reject.put("record key kind 12", b -> b.recs.get(1).kinds[0] = 12);
+        accept.put("record key kinds 1..11", b -> {
+            b.recs.get(1).kinds = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+            b.recs.get(1).hashes = seq(11, 30);
+        });
         reject.put("record kind 0", b -> b.recs.get(0).kind = 0);
         reject.put("record kind 3", b -> b.recs.get(1).kind = 3);
+        reject.put("not-ad record with authorKey", b -> b.recs.get(1).author = 5);
+        reject.put("not-ad record with msgKey", b -> b.recs.get(1).msgKey = 5);
+        accept.put("endorsement record with authorKey", b -> b.recs.get(0).author = 0x8000000000000005L);
         // truncation / trailing bytes (bodyHash recomputed over the damaged body, so only the parser can catch it)
         reject.put("truncated body (1 byte)", b -> b.truncate = 1);
         reject.put("truncated body (one handle)", b -> b.truncate = 32);
@@ -1806,5 +1835,508 @@ public final class AdShieldCheck {
         cur.note = String.format("observe x3000 %.0f ms (%.3f ms each); cold decide avg %.2f ms / max %.2f ms; "
                         + "warm decide avg %.3f ms / max %.2f ms (pass of 3000: %.0f ms, %d folded); observe+30 decides %.2f ms",
                 obsMs, obsMs / n, coldSum / coldRuns, coldMax, passMs / n, warmMax, passMs, folded, stepMs);
+    }
+
+    // ------------------------------------------------------------------ v3 unit tests (ref TestV3 / TestV3Fixes)
+    /** JSON with single quotes (the test texts never contain one). */
+    static Map<String, Object> J(String singleQuoted) {
+        return obj(MiniJson.parse(singleQuoted.replace('\'', '"')));
+    }
+
+    static MessageInput M(String singleQuoted) {
+        return msg(J(singleQuoted));
+    }
+
+    static String joinAll(List<String> xs) {
+        StringBuilder sb = new StringBuilder();
+        for (String x : xs) {
+            sb.append(x);
+        }
+        return sb.toString();
+    }
+
+    static List<String> varList(List<LuminaAdShield.VarKey> vs) {
+        ArrayList<String> out = new ArrayList<String>();
+        for (LuminaAdShield.VarKey v : vs) {
+            out.add(LuminaAdShield.KIND_NAME[v.kind] + ":" + v.payload);
+        }
+        return out;
+    }
+
+    static List<Integer> groupIds(String[] texts) {
+        LuminaAdShieldStore chat = new LuminaAdShieldStore(-1, TEST_KEY);
+        ChatContext c = ChatContext.builder(-1).build();
+        for (int i = 0; i < texts.length; i++) {
+            chat.observe(simple(i + 1, 1000 + i, 5, null, "member", texts[i]), c, 2000);
+        }
+        LuminaAdShieldStore.View v = chat.view(c, 2000);
+        LuminaAdShieldStore.Unit m = chat.unitOf(v, 1);
+        ArrayList<Integer> ids = new ArrayList<Integer>();
+        for (LuminaAdShieldStore.Unit u : LuminaAdShieldStore.group(v, m).units) {
+            for (LuminaAdShieldStore.Row r : u.rows) {
+                ids.add(r.msgId);
+            }
+        }
+        Collections.sort(ids);
+        return ids;
+    }
+
+    static void v3Rules() throws IOException {
+        section("v3-rules");
+        final String V = "VAR:", VL = "VARL:", VS = "VARS:";
+        // test_var_key_rules
+        {
+            List<String> lines = Arrays.asList("丝滑提交", "限时特价云端会员年卡全网最低价格", "有需要的请私聊我下单先到先得");
+            eq(Arrays.asList(V + joinAll(lines), VS + joinAll(lines.subList(1, 3))),
+                    varList(LuminaAdShield.varKeys(lines)), "var keys: full + strict drop of the short first line");
+            List<String> loose = Arrays.asList("一二三四五六七八九十", lines.get(1), lines.get(2));
+            eq(Arrays.asList(V + joinAll(loose), VL + joinAll(loose.subList(1, 3))),
+                    varList(LuminaAdShield.varKeys(loose)), "var keys: loose drop (2D <= K < 4D)");
+            eq(Collections.emptyList(), varList(LuminaAdShield.varKeys(Arrays.asList("短"))), "var keys: K < 24 -> none");
+            eq(Arrays.asList(V + "一二三四五六七八九十一二"),
+                    varList(LuminaAdShield.varKeys(Arrays.asList("一二三四五六七八九十一二"))), "var keys: single line");
+            List<LuminaAdShield.VarKey> dup = LuminaAdShield.varKeys(Arrays.asList("价目表如下请参考", "#件起", "#件起", "详情请私聊客服人员"));
+            HashSet<String> ps = new HashSet<String>();
+            for (LuminaAdShield.VarKey vk : dup) {
+                ps.add(vk.payload);
+            }
+            eq(dup.size(), ps.size(), "var keys deduplicated by payload");
+            ArrayList<String> many = new ArrayList<String>();
+            for (int i = 0; i < 50; i++) {
+                many.add(String.format("第%02d行商品名称", i));
+            }
+            List<LuminaAdShield.VarKey> vs = LuminaAdShield.varKeys(many);
+            eq(LuminaAdShield.MAX_VAR, vs.size(), "var keys capped at 34 (full + 16 + 16 + head/tail)");
+            boolean kindsOk = vs.get(0).kind == LuminaAdShield.KIND_VAR;
+            ArrayList<String> pays = new ArrayList<String>();
+            for (int i = 0; i < vs.size(); i++) {
+                pays.add(vs.get(i).payload);
+                if (i > 0 && vs.get(i).kind != LuminaAdShield.KIND_VARS) {
+                    kindsOk = false;
+                }
+            }
+            check(kindsOk, "var keys of 50 short lines: VAR then 33 VARS");
+            ArrayList<String> mid = new ArrayList<String>(many);
+            mid.remove(25);
+            check(!pays.contains(joinAll(mid)), "no leave-one-out for middle lines");
+            ArrayList<String> l15 = new ArrayList<String>(many);
+            l15.remove(15);
+            check(pays.contains(joinAll(l15)), "leave-one-out for line 15");
+            ArrayList<String> l34 = new ArrayList<String>(many);
+            l34.remove(34);
+            check(pays.contains(joinAll(l34)), "leave-one-out for line 34 (n - 16)");
+        }
+        // test_var_matching_rules
+        {
+            String head = "【社區公告】本週社區活動與重要事項", tail = "如有疑問請私聊管理員\n感謝各位鄰居配合";
+            eq(Arrays.asList(1), groupIds(new String[]{head + "\n週六上午九點大樓消防演練\n" + tail,
+                    head + "\n週日下午兩點社區二手市集\n" + tail}), "replaced longer middle line (only VARL) does not link (P2a)");
+            eq(Arrays.asList(1, 2), groupIds(new String[]{head + "\n" + tail, head + "\n週六上午九點大樓消防演練\n" + tail}),
+                    "added line links (VAR = VARL/VARS)");
+            String long_ = "本店雲端會員年卡限時特價全網最低價格\n季卡月卡全部現貨下單後五分鐘內開通\n企業採購量大可議歡迎私聊客服詢價\n"
+                    + "售後保固一年有任何問題隨時找我們";
+            eq(Arrays.asList(1, 2), groupIds(new String[]{long_ + "\n今日特價", long_ + "\n明日特價"}),
+                    "replaced short line links (shared VARS)");
+            // other senders never link through VAR
+            LuminaAdShieldStore chat = new LuminaAdShieldStore(-1, TEST_KEY);
+            ChatContext c = ChatContext.builder(-1).build();
+            chat.observe(simple(1, 1000, 5, null, "member", head + "\n" + tail), c, 2000);
+            chat.observe(simple(2, 1001, 6, null, "member", head + "\n週六上午九點大樓消防演練\n" + tail), c, 2000);
+            LuminaAdShieldStore.View v = chat.view(c, 2000);
+            eq(1, LuminaAdShieldStore.group(v, chat.unitOf(v, 1)).units.size(), "VAR does not link different senders");
+        }
+        // test_block_rules
+        {
+            String f = "標題\n\n第一區塊的內容長度足夠\n第二行\n🔥🔥🔥\n第二區塊的內容長度也足夠\n\n短\n\n第一區塊的內容長度足夠\n第二行";
+            String fn = LuminaAdShield.extractLinks(AdShieldTables.fold(f)).foldNoLinks;
+            List<String> bs = LuminaAdShield.blocks(fn);
+            eq(Arrays.asList("标题", "第一区块的内容长度足够第二行", "第二区块的内容长度也足够", "短", "第一区块的内容长度足够第二行"), bs, "blocks");
+            eq(Arrays.asList("第一区块的内容长度足够第二行", "第二区块的内容长度也足够"), LuminaAdShield.blockPayloads(bs), "block payloads");
+            eq(Collections.emptyList(), LuminaAdShield.blockPayloads(Arrays.asList("第一区块的内容长度足够第二行", "短")),
+                    "one qualifying block -> no BLOCK keys");
+            check(LuminaAdShield.blockContained(5, 6, 6) && LuminaAdShield.blockContained(2, 2, 9)
+                    && LuminaAdShield.blockContained(4, 5, 5), "block containment accepts");
+            check(!LuminaAdShield.blockContained(2, 3, 3) && !LuminaAdShield.blockContained(1, 1, 1)
+                    && !LuminaAdShield.blockContained(3, 4, 4), "block containment rejects (P5c: 3 of 4)");
+            eq(Arrays.asList("标题", "第一区块的内容长度足够", "第二行", "第二区块的内容长度也足够", "短", "第一区块的内容长度足够", "第二行"),
+                    LuminaAdShield.contentLines(fn), "content lines");
+        }
+        // test_row_key_cap_reached_and_serializable
+        {
+            String digits = "零一二三四五六七八九", stems = "甲乙丙丁戊";
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 40; i++) {
+                if (i > 0) {
+                    sb.append("\n\n");
+                }
+                sb.append("第").append(digits.charAt(i % 10)).append("段是一行足夠長的內容，用來產生段落鍵與區塊鍵，順便測試上限")
+                        .append(stems.charAt(i / 10));
+            }
+            sb.append("\n\n客服電話 0912-345-678 有需要私聊");
+            MessageInput m = simple(1, 1000, 5, null, "member", sb.toString());
+            m.media = new LuminaAdShield.Media();
+            m.media.kind = "photo";
+            m.media.id = "-42";
+            m.forward = new LuminaAdShield.Forward();
+            m.forward.fromKind = "user";
+            m.forward.fromId = 77;
+            m.forward.date = 900;
+            LuminaAdShieldStore chat = new LuminaAdShieldStore(-1, TEST_KEY);
+            Fingerprint fp = chat.observe(m, ChatContext.builder(-1).build(), 2000);
+            eq(LuminaAdShield.MAX_ROW_KEYS, fp.keyKinds.length, "72 keys reached");
+            int para = 0, var = 0, block = 0;
+            int[] rank = {-1, 0, 1, 2, 3, 4, 6, 5, 7, 7, 7, 8};
+            boolean sorted = true;
+            for (int i = 0; i < fp.keyKinds.length; i++) {
+                int k = fp.keyKinds[i];
+                para += k == LuminaAdShield.KIND_PARA ? 1 : 0;
+                var += LuminaAdShield.isVarKind(k) ? 1 : 0;
+                block += k == LuminaAdShield.KIND_BLOCK ? 1 : 0;
+                if (i > 0 && rank[fp.keyKinds[i - 1]] > rank[k]) {
+                    sorted = false;
+                }
+            }
+            eq("16/34/16", para + "/" + var + "/" + block, "PARA / VAR family / BLOCK counts at the cap");
+            check(sorted, "key order FWD MEDIA TEXT CJK TMPL CONTACT PARA VAR-family BLOCK");
+            byte[] blob = chat.serialize();
+            LuminaAdShieldStore back = LuminaAdShieldStore.deserialize(blob, -1, TEST_KEY);
+            check(back != null && Arrays.equals(back.serialize(), blob), "72-key row round-trips byte for byte");
+            eq(0, chat.recordCount(), "no endorsement record for a member");
+        }
+        // test_record_author_and_format
+        {
+            LuminaAdShieldStore chat = new LuminaAdShieldStore(-1, TEST_KEY);
+            ChatContext c = ChatContext.builder(-1).linkedChannel(-100777, null).build();
+            chat.observe(simple(1, 1000, 9, null, "admin", "本群合作推廣：雲端會員特價，私聊管理員"), c, 2000);
+            MessageInput pin = simple(2, 1001, 8, null, "member", "本群公告：雲端會員特價，私聊管理員");
+            pin.pinned = true;
+            chat.observe(pin, c, 2000);
+            chat.observe(simple(3, 1002, -100777, null, "channel", "頻道公告：私聊客服"), c, 2000);
+            chat.observe(simple(4, 1003, 10, null, "self", "我的公告：私聊我報名"), c, 2000);
+            java.util.HashMap<Long, Long> authors = new java.util.HashMap<Long, Long>();
+            for (LuminaAdShieldStore.Record r : chat.records) {
+                authors.put(r.msgKey, r.author);
+            }
+            java.util.HashMap<Long, Long> want = new java.util.HashMap<Long, Long>();
+            want.put(AdShieldTables.keyedHash(TEST_KEY, "msg", "1"), LuminaAdShield.senderKey(TEST_KEY, 9));
+            want.put(AdShieldTables.keyedHash(TEST_KEY, "msg", "2"), 0L);
+            want.put(AdShieldTables.keyedHash(TEST_KEY, "msg", "3"), LuminaAdShield.senderKey(TEST_KEY, -100777));
+            want.put(AdShieldTables.keyedHash(TEST_KEY, "msg", "4"), 0L);
+            eq(want, authors, "endorsement record authors (admin, pinned member, linked channel, self)");
+            byte[] blob = chat.serialize();
+            LuminaAdShieldStore back = LuminaAdShieldStore.deserialize(blob, -1, TEST_KEY);
+            if (check(back != null, "store with authors round-trips")) {
+                StringBuilder a = new StringBuilder(), b = new StringBuilder();
+                for (LuminaAdShieldStore.Record r : chat.records) {
+                    a.append(hex(r.msgKey)).append(':').append(hex(r.author)).append(',');
+                }
+                for (LuminaAdShieldStore.Record r : back.records) {
+                    b.append(hex(r.msgKey)).append(':').append(hex(r.author)).append(',');
+                }
+                eq(a.toString(), b.toString(), "authors survive the round trip");
+            }
+            eq("3/3", (blob[4] & 0xFF | (blob[5] & 0xFF) << 8) + "/" + (blob[6] & 0xFF | (blob[7] & 0xFF) << 8),
+                    "header formatVersion / algoVersion");
+            byte[] old = blob.clone();
+            old[4] = 2;
+            check(LuminaAdShieldStore.deserialize(old, -1, TEST_KEY) == null, "a v2 header is discarded");
+        }
+        // test_privileged_definition
+        {
+            ChatContext c = ChatContext.builder(-100).linkedChannel(-200, null).build();
+            String[][] cases = {
+                    {"'sender': {'id': 1, 'role': 'admin'}", "11"},
+                    {"'sender': {'id': 1, 'role': 'creator'}", "11"},
+                    {"'sender': {'id': -100, 'role': 'anon_admin'}", "11"},
+                    {"'sender': {'id': -200, 'role': 'channel'}", "11"},
+                    {"'sender': {'id': -300, 'role': 'channel'}", "00"},
+                    {"'sender': {'id': -200, 'role': 'channel'}, 'autoForward': true", "11"},
+                    {"'sender': {'id': 1, 'role': 'self'}", "10"},
+                    {"'sender': {'id': 1, 'role': 'member'}, 'pinned': true", "10"},
+                    {"'sender': {'id': 1, 'role': 'member'}, 'forward': {'fromKind': 'channel', 'fromId': -200, 'postId': 5, 'date': 1}", "10"},
+                    {"'sender': {'id': 1, 'role': 'admin'}, 'forward': {'fromKind': 'user', 'fromId': 5, 'date': 1}", "00"},
+                    {"'sender': {'id': 1, 'role': 'admin'}, 'forward': {'fromKind': 'channel', 'fromId': -900, 'postId': 5, 'date': 1}", "11"},
+                    {"'sender': {'id': -200, 'role': 'self'}", "10"},
+                    {"'sender': {'id': -100, 'role': 'self'}", "10"},
+            };
+            for (String[] cs : cases) {
+                Fingerprint fp = LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '本群公告：雲端會員特價，私聊客服', "
+                        + cs[0] + "}"), c, TEST_KEY);
+                String got = (fp.endorsing ? "1" : "0") + (fp.privileged ? "1" : "0");
+                eq(cs[1], got, "endorsing/privileged of {" + cs[0] + "}");
+                eq(fp.privileged, (fp.flags & LuminaAdShield.F_PRIV) != 0, "F_PRIV matches privileged {" + cs[0] + "}");
+            }
+        }
+        // test_crlf_collapsed_before_fold
+        {
+            ChatContext c = ChatContext.builder(-1).build();
+            String lf = "雲端會員限時調價\n企業採購請私聊\n\n雲端硬碟會員年卡特價\n季卡特價月卡特價";
+            Fingerprint a = LuminaAdShield.fingerprint(simple(1, 1, 5, null, "member", lf), c, TEST_KEY);
+            Fingerprint b = LuminaAdShield.fingerprint(simple(1, 1, 5, null, "member", lf.replace("\n", "\r\n")), c, TEST_KEY);
+            eq(a.fold, b.fold, "CR LF: same fold");
+            eq(Arrays.toString(a.keyHashes) + Arrays.toString(a.keyKinds), Arrays.toString(b.keyHashes) + Arrays.toString(b.keyKinds),
+                    "CR LF: same keys");
+            eq(a.blocks, b.blocks, "CR LF: same blocks");
+            eq(a.flags, b.flags, "CR LF: same flags");
+            eq("a\r\nb\rc\n\r", LuminaAdShield.collapseCrlf("a\r\r\nb\rc\n\r"), "collapseCrlf: one pass, only CR before LF");
+            String sep = "一" + (char) 0x2028 + "二\n \t\n三\n🔥\n四";
+            eq(Arrays.asList("一二", "三", "四"), LuminaAdShield.blocks(AdShieldTables.fold(sep)), "U+2028 / blank / emoji-only lines");
+        }
+        // test_author_and_priv_strong
+        {
+            ChatContext c = ctx(J("{'chatId': -100, 'username': 'grp_demo', 'linkedChannel': {'id': -200, 'username': 'ch_demo'},"
+                    + " 'description': '官方客服 @desk_demo_helper', 'pinnedTexts': ['最新價目 私聊 @seller_demo_a 交流群 t.me/+PinInvDemo']}"));
+            String text = "最新價目 有需要聯繫 @seller_demo_a 交流群 t.me/+PinInvDemo";
+            String fwd = "'forward': {'fromKind': 'channel', 'fromId': -200, 'postId': 9, 'username': 'ch_demo', 'date': 1}";
+            Fingerprint adm = LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '" + text + "', 'sender': {'id': 7, 'role': 'admin'}}"), c, TEST_KEY);
+            eq(Collections.emptyList(), adm.strong, "pinned tokens: no strong feature for the admin");
+            check((adm.flags & LuminaAdShield.F_PRIV_STRONG) != 0, "pinned-only tokens -> PRIV_STRONG");
+            eq(LuminaAdShield.senderKey(TEST_KEY, 7), adm.senderKey, "admin senderKey");
+            Fingerprint mem = LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '" + text + "', 'sender': {'id': 8, 'role': 'member'}}"), c, TEST_KEY);
+            eq(0, mem.flags & (LuminaAdShield.F_PRIV | LuminaAdShield.F_PRIV_STRONG), "member: neither PRIV nor PRIV_STRONG");
+            eq(LuminaAdShield.senderKey(TEST_KEY, 8), mem.senderKey, "member senderKey");
+            eq(LuminaAdShield.senderKey(TEST_KEY, -200), LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '" + text
+                    + "', 'sender': {'id': 7, 'role': 'admin'}, " + fwd + "}"), c, TEST_KEY).senderKey, "admin forwarding the linked channel: author = channel");
+            eq(LuminaAdShield.senderKey(TEST_KEY, 8), LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '" + text
+                    + "', 'sender': {'id': 8, 'role': 'member'}, " + fwd + "}"), c, TEST_KEY).senderKey, "member forwarding the linked channel: own id");
+            eq(LuminaAdShield.senderKey(TEST_KEY, 7), LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'text': '" + text
+                    + "', 'sender': {'id': 7, 'role': 'admin'}, " + fwd.replace("-200", "-900") + "}"), c, TEST_KEY).senderKey,
+                    "admin forwarding another channel: own id");
+            Fingerprint auto = LuminaAdShield.fingerprint(M("{'id': 2, 'date': 1, 'sender': {'id': -200, 'role': 'channel'}, 'autoForward': true, "
+                    + fwd + ", 'text': '新品上架 私訊 @other_seller_demo'}"), c, TEST_KEY);
+            check((auto.flags & LuminaAdShield.F_PRIV_STRONG) != 0, "auto-forward: downgraded handle is PRIV_STRONG");
+            Fingerprint desc = LuminaAdShield.fingerprint(M("{'id': 1, 'date': 1, 'sender': {'id': 7, 'role': 'admin'}, "
+                    + "'text': '有問題找 @desk_demo_helper 或看 @ch_demo'}"), c, TEST_KEY);
+            check((desc.flags & LuminaAdShield.F_PRIV_STRONG) == 0, "description / own usernames never PRIV_STRONG");
+        }
+        // test_tolerant_record_overlap_never_impersonation
+        {
+            ChatContext c = ChatContext.builder(-1).build();
+            LuminaAdShieldStore chat = new LuminaAdShieldStore(-1, TEST_KEY);
+            String ann = "本週六下午兩點社區讀書會\n地點在市立圖書館三樓會議室\n歡迎大家帶朋友一起參加";
+            chat.observe(simple(1, 1000, 1, null, "admin", ann), c, 9000);
+            chat.observe(simple(2, 2000, 2, null, "member", ann + "\n我整理的書單 https://notes-alpha.example/l"), c, 9000);
+            chat.observe(simple(3, 3000, 3, null, "member", ann + "\n我整理的書單 https://notes-beta.example/l"), c, 9000);
+            chat.observe(simple(4, 4000, 4, null, "member", ann + "\n讀書會加油"), c, 9000);
+            for (String sens : LuminaAdShield.SENSITIVITIES) {
+                Decision d2 = chat.decide(2, c, new Settings(sens), 9000);
+                Decision d3 = chat.decide(3, c, new Settings(sens), 9000);
+                Decision d4 = chat.decide(4, c, new Settings(sens), 9000);
+                eq("weak/weak", d2.cls + "/" + d3.cls, "tolerant record overlap is never impersonation " + sens);
+                check(!d2.fold && !d3.fold && !d4.fold, "nothing folds " + sens);
+                eq(Decision.ENDORSED, d4.state, "edited copy without new links is endorsed " + sens);
+            }
+        }
+        // test_option_only_affects_privileged
+        {
+            int checkedPriv = 0;
+            for (Object o : list(obj(load("corpus/scenarios.json")).get("scenarios"))) {
+                Map<String, Object> sc = obj(o);
+                LuminaAdShieldAccount acct = new LuminaAdShieldAccount(424242, TEST_KEY, null);
+                ChatContext c = ctx(obj(sc.get("context")));
+                LuminaAdShieldStore chat = acct.chat(c.chatId);
+                ArrayList<Integer> seen = new ArrayList<Integer>();
+                long now = 0;
+                for (Object eo : list(sc.get("events"))) {
+                    Map<String, Object> ev = obj(eo);
+                    String op = str(ev, "op");
+                    if (op.equals("observe")) {
+                        Map<String, Object> m = obj(ev.get("message"));
+                        now = ev.containsKey("now") ? lng(ev, "now", 0) : Math.max(now, lng(m, "date", 0));
+                        chat.observe(msg(m), c, now);
+                        int id = (int) lng(m, "id", 0);
+                        if (!seen.contains(id)) {
+                            seen.add(id);
+                        }
+                    } else if (op.equals("delete")) {
+                        now = ev.containsKey("now") ? lng(ev, "now", 0) : now;
+                        List<Object> ids = list(ev.get("ids"));
+                        int[] arr = new int[ids.size()];
+                        for (int i = 0; i < arr.length; i++) {
+                            arr[i] = ((Number) ids.get(i)).intValue();
+                        }
+                        chat.delete(arr, now);
+                    } else if (op.equals("notAd")) {
+                        now = ev.containsKey("now") ? lng(ev, "now", 0) : now;
+                        chat.markNotAd((int) lng(ev, "id", 0), c, now);
+                    } else if (op.equals("context")) {
+                        c = ctx(obj(ev.get("context")));
+                    } else if (op.equals("expect")) {
+                        now = ev.containsKey("now") ? lng(ev, "now", 0) : now;
+                        for (int id : seen) {
+                            Long rid = chat.byMsg.get(id);
+                            boolean priv = rid != null && (chat.rows.get(rid).flags & LuminaAdShield.F_PRIV) != 0;
+                            for (String sens : LuminaAdShield.SENSITIVITIES) {
+                                Settings off = settings(sc, sens);
+                                off.foldPrivilegedRepeats = false;
+                                Settings on = settings(sc, sens);
+                                on.foldPrivilegedRepeats = true;
+                                Decision dOff = chat.decide(id, c, off, now);
+                                Decision dOn = chat.decide(id, c, on, now);
+                                if (priv) {
+                                    checkedPriv++;
+                                    if (c.adminsKnown && LuminaAdShield.eligibleChat(c)) {
+                                        eq(Decision.ENDORSED, dOff.state, str(sc, "id") + " msg " + id + " " + sens + " PRIV with the option off");
+                                    }
+                                } else {
+                                    eq(dOff, dOn, str(sc, "id") + " msg " + id + " " + sens + " non-PRIV independent of the option");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            check(checkedPriv > 50, "option test covered > 50 privileged decisions (" + checkedPriv + ")");
+            cur.note = "(option test: " + checkedPriv + " privileged decisions)";
+        }
+    }
+
+    // ------------------------------------------------------------------ performance: v3 keys (multi-line price lists)
+    static void perfV3() {
+        section("perf v3 (3000 price lists)");
+        final long chatId = -100778L;
+        ChatContext c = ChatContext.builder(chatId).type("supergroup").username("perf_grp")
+                .memberHandles(Arrays.asList("admin_one", "helper_bot")).build();
+        LuminaAdShieldStore chat = new LuminaAdShieldStore(chatId, TEST_KEY);
+        long base = 1_795_000_000L;
+        int n = 3000;
+        String[] items = {"雲端會員年卡", "影音會員季卡", "網盤會員月卡", "音樂會員半年卡", "閱讀會員年卡", "遊戲點數卡",
+                "外送會員卡", "旅遊住宿券", "電商優惠券", "線上課程卡", "健身會員卡", "影城觀影券"};
+        long tObs = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            StringBuilder sb = new StringBuilder();
+            if (i % 5 == 1) {
+                sb.append("絲滑提交：\n\n");                    // the user's case: a short first line added
+            }
+            int variant = i % 3 == 2 ? i : i % 40;             // a third unique, the rest 40 lists reposted
+            sb.append("【價目表 第").append(variant).append("期】\n\n");
+            for (int k = 0; k < items.length; k++) {
+                sb.append(items[(k + variant) % items.length]).append("特價").append(10 + (k * 7 + variant) % 90)
+                        .append("元起，現貨秒發\n\n");
+            }
+            sb.append("下單請私聊 @vendor_demo_").append(i % 40).append(" 或看 t.me/+promo").append(variant % 40);
+            chat.observe(simple(i + 1, base + i * 120L, 5000 + (i % 400), "user_" + (i % 400), "member", sb.toString()), c,
+                    base + n * 120L);
+        }
+        double obsMs = (System.nanoTime() - tObs) / 1e6;
+        long now = base + n * 120L;
+        eq(n, chat.rowCount(), "3000 rows stored");
+        int keys = 0;
+        for (LuminaAdShieldStore.Row r : chat.rows.values()) {
+            keys += r.keys.length;
+        }
+        Settings st = new Settings(LuminaAdShield.SENS_STANDARD);
+        for (int rep = 0; rep < 3; rep++) {
+            for (int id = 1; id <= n; id++) {
+                chat.decide(id, c, st, now);
+            }
+            chat.mutations++;
+        }
+        int coldRuns = 30;
+        double coldMax = 0, coldSum = 0;
+        Random r = new Random(1);
+        for (int k = 0; k < coldRuns; k++) {
+            chat.mutations++;
+            int id = 1 + r.nextInt(n);
+            long a = System.nanoTime();
+            chat.decide(id, c, st, now);
+            double ms = (System.nanoTime() - a) / 1e6;
+            coldSum += ms;
+            coldMax = Math.max(coldMax, ms);
+        }
+        chat.mutations++;
+        chat.decide(1, c, st, now);
+        int folded = 0;
+        double warmMax = 0;
+        long a = System.nanoTime();
+        for (int id = 1; id <= n; id++) {
+            long b = System.nanoTime();
+            if (chat.decide(id, c, st, now).fold) {
+                folded++;
+            }
+            warmMax = Math.max(warmMax, (System.nanoTime() - b) / 1e6);
+        }
+        double passMs = (System.nanoTime() - a) / 1e6;
+        int blob = chat.serialize().length;
+        check(coldSum / coldRuns < 200, "cold decide average < 200 ms");
+        check(passMs / n < 10, "warm decide average < 10 ms");
+        check(folded > 0, "reposted price lists are folded");
+        cur.note = String.format("%.1f keys/row, blob %d KB; observe x3000 %.0f ms; cold decide (view rebuild) avg %.1f ms / max %.1f ms; "
+                        + "warm decide avg %.3f ms / max %.2f ms (%d folded)",
+                keys / (double) n, blob / 1024, obsMs, coldSum / coldRuns, coldMax, passMs / n, warmMax, folded);
+    }
+
+    // ------------------------------------------------------------------ owner's case (synthetic copy), vs the reference
+    static final String USER_CASE_BODY = String.join("\n",
+            "价格下调：", "企业用户 私聊 价格全网最低", "标准版 和 高级版 一切正常", "",
+            "🔥 云盘会员", "年卡特惠：300", "季卡特惠：106", "月卡 特惠：64", "",
+            "⭐ 影音会员  118", "【10起117】", "【20起116】", "【30起115】", "",
+            "⭐ 音乐会员 【35】", "",
+            "⭐ 阅读点数", "250点数=75", "500点数=145", "1000点数=276", "",
+            "📍 立即访问", "👉 https://shop-sample.example/ （需要登录访问 ）", "",
+            "有任何问题 随时私聊 @sample_vendor", "",
+            "频道： https://t.me/sample_vendor_ch", "交流群： https://t.me/sample_vendor_grp", "交流2群： https://t.me/sample_vendor_grp2");
+
+    static String userCaseRun(String role, long senderId, int[] pinned, boolean ctxPinned, boolean auto, boolean crlf, boolean option) {
+        Map<String, Object> cj = J("{'chatId': -1001000000777, 'type': 'supergroup', 'username': 'sample_vendor_grp',"
+                + " 'linkedChannel': {'id': -1002000000888, 'username': 'sample_vendor_ch'}, 'adminsKnown': true,"
+                + " 'memberHandles': ['sample_vendor']}");
+        if (ctxPinned) {
+            cj.put("pinnedTexts", new ArrayList<Object>(Collections.singletonList(USER_CASE_BODY)));
+        }
+        ChatContext c = ctx(cj);
+        LuminaAdShieldStore chat = new LuminaAdShieldAccount(1, TEST_KEY, null).chat(c.chatId);
+        String body = crlf ? USER_CASE_BODY.replace("\n", "\r\n") : USER_CASE_BODY;
+        long[] dates = {1793620800L, 1794744000L, 1794969780L, 1794970800L};    // 2026-11-02 12:00 .. 11-18 03:00 UTC
+        long now = 1794971340L;                                                 // 2026-11-18 03:09 UTC
+        for (int i = 0; i < 4; i++) {
+            MessageInput m = simple(i + 1, dates[i], senderId, null, role, i == 3 ? "丝滑提交：\n\n" + body : body);
+            for (int p : pinned) {
+                m.pinned |= p == i + 1;
+            }
+            m.autoForward = auto;
+            chat.observe(m, c, now);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String sens : LuminaAdShield.SENSITIVITIES) {
+            Settings st = new Settings(sens);
+            st.foldPrivilegedRepeats = option;
+            if (sb.length() > 0) {
+                sb.append('|');
+            }
+            for (int id = 1; id <= 4; id++) {
+                sb.append(id > 1 ? "," : "").append(chat.decide(id, c, st, now).state);
+            }
+        }
+        return sb.toString();
+    }
+
+    static void userCase() {
+        section("owner case (synthetic)");
+        String endorsed = "endorsed,endorsed,endorsed,endorsed";
+        String allEndorsed = endorsed + "|" + endorsed + "|" + endorsed;
+        String folds = "none,none,none,none|none,fold,fold,fold|none,fold,fold,fold";
+        int[] none = {};
+        // expected values: tools/usercase.py on the reference engine (same text, same setups)
+        Object[][] runs = {
+                {"linked channel, #1 #2 #4 pinned, pinned text in context", "channel", -1002000000888L, new int[]{1, 2, 4}, true, false, false},
+                {"linked channel", "channel", -1002000000888L, none, false, false, false},
+                {"auto-forwarded channel posts", "channel", -1002000000888L, none, false, true, false},
+                {"admin", "admin", 555L, none, false, false, false},
+                {"linked channel, CR LF text", "channel", -1002000000888L, none, false, false, true},
+        };
+        for (Object[] r : runs) {
+            caseBegin();
+            eq(allEndorsed, userCaseRun((String) r[1], (Long) r[2], (int[]) r[3], (Boolean) r[4], (Boolean) r[5], (Boolean) r[6], false),
+                    r[0] + ": option off (= v2)");
+            eq(folds, userCaseRun((String) r[1], (Long) r[2], (int[]) r[3], (Boolean) r[4], (Boolean) r[5], (Boolean) r[6], true),
+                    r[0] + ": option on");
+            caseEnd();
+        }
+        caseBegin();
+        eq(folds, userCaseRun("member", 777, none, false, false, false, false), "ordinary member, option off");
+        eq(folds, userCaseRun("member", 777, none, false, false, false, true), "ordinary member, option on");
+        caseEnd();
+        cur.note = "(loose|standard|aggressive x msgs #1..#4; #4 has a short first line added)";
     }
 }

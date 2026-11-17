@@ -286,6 +286,16 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
         LuminaAdShieldManager.setChatMode(account, dialogId, mode);
     }
 
+    /** This group's 「連管理員和頻道的也收」 option (default off; effective only while the feature is on here). */
+    public boolean getFoldPrivileged() {
+        return LuminaAdShieldManager.getFoldPrivileged(account, dialogId);
+    }
+
+    /** Stores the option; the loaded messages of this chat are decided again with it. */
+    public void setFoldPrivileged(boolean on) {
+        LuminaAdShieldManager.setFoldPrivileged(account, dialogId, on);
+    }
+
     /** Raw engine decision, or null (not stored / not decided yet). Any thread, O(1). */
     public LuminaAdShield.Decision getDecision(int msgId) {
         return decisions.get(msgId);
@@ -567,7 +577,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
                 // A segment can hold more than one cluster (two campaigns posted back to back): record each
                 // one that still folds, so 「不是廣告」 on the fold row covers everything the row stood for.
                 if (segmentMsgIds != null && c != null) {
-                    LuminaAdShield.Settings s = LuminaAdShieldManager.settings();
+                    LuminaAdShield.Settings s = LuminaAdShieldManager.settings(account, dialogId);
                     for (int id : segmentMsgIds) {
                         if (id > 0 && id != anchorMsgId && store.decide(id, c, s, now).fold) {
                             store.markNotAd(id, c, now);
@@ -599,7 +609,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
             LuminaAdShieldStore store = engineStore(target, true);
             if (store != null) {
                 long t0 = SystemClock.elapsedRealtime();
-                n = LuminaAdShieldManager.engineFoldedCount7d(store, c, LuminaAdShieldManager.settings(), LuminaAdShieldManager.now(account));
+                n = LuminaAdShieldManager.engineFoldedCount7d(store, c, LuminaAdShieldManager.settings(account, dialogId), LuminaAdShieldManager.now(account));
                 LuminaAdShield.log("adshield folded count in " + (SystemClock.elapsedRealtime() - t0) + " ms");
             }
             final int result = n;
@@ -1244,7 +1254,7 @@ public final class LuminaAdShieldChatSession implements NotificationCenter.Notif
      */
     private void enginePublish(LuminaAdShieldStore store, LuminaAdShield.ChatContext c, long now,
                                ConcurrentHashMap<Integer, LuminaAdShield.Decision> target, Batch b, int[] batch, boolean all) {
-        LuminaAdShield.Settings s = LuminaAdShieldManager.settings();
+        LuminaAdShield.Settings s = LuminaAdShieldManager.settings(account, dialogId);
         LinkedHashSet<Integer> ids = new LinkedHashSet<Integer>();
         if (deferredIds != null && deferredTarget == target) {
             ids.addAll(deferredIds);
