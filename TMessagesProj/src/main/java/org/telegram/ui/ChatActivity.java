@@ -198,6 +198,8 @@ import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaExplain;
 import org.telegram.messenger.LuminaLlm;
 import org.telegram.messenger.LuminaFileGuard;
+import org.telegram.messenger.LuminaHistoryFilter;
+import org.telegram.messenger.LuminaHistoryPaging;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.LuminaMenuIds;
 import org.telegram.messenger.LuminaScreenshotDetector;
@@ -937,6 +939,16 @@ public class ChatActivity extends BaseFragment implements
     private boolean[] endReached = new boolean[2];
     private boolean[] cacheEndReached = new boolean[2];
     private boolean[] forwardEndReached = new boolean[]{true, true};
+    // LuminaGram #22 paging: cursors and request spacing for pages the keyword filter shortened
+    // (LuminaHistoryPaging). All inert while the keyword list is empty.
+    private final LuminaHistoryPaging.OlderCursor luminaOlderCursor = new LuminaHistoryPaging.OlderCursor();
+    private final LuminaHistoryPaging.NewerCursor[] luminaNewerCursor = new LuminaHistoryPaging.NewerCursor[]{new LuminaHistoryPaging.NewerCursor(), new LuminaHistoryPaging.NewerCursor()};
+    private final LuminaHistoryPaging.Throttle luminaOlderThrottle = new LuminaHistoryPaging.Throttle();
+    private final LuminaHistoryPaging.Throttle luminaNewerThrottle = new LuminaHistoryPaging.Throttle();
+    private final LuminaHistoryPaging.RetrySlot luminaPagingRetrySlot = new LuminaHistoryPaging.RetrySlot();
+    private int luminaOlderHeldIndex = -1;
+    private int luminaNewerHeldIndex = -1;
+    private final Runnable luminaPagingRetry = this::luminaPagingRetryNow;
     private boolean hideForwardEndReached;
     private boolean loading = true;
     private boolean firstLoading = true;
@@ -3430,6 +3442,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        AndroidUtilities.cancelRunOnUIThread(luminaPagingRetry); // LuminaGram #22 paging
         if (luminaAdShield != null) {
             luminaAdShield.close();
             luminaAdShield = null;
@@ -14649,10 +14662,12 @@ public class ChatActivity extends BaseFragment implements
 
         AndroidUtilities.runOnUIThread(() -> {
             if (totalItemCount - firstVisibleItemFinal - visibleItemCountFinal <= checkLoadCount && !loading) {
-                if (!endReached[0]) {
+                if (luminaPagingDeferred(false, !endReached[0] || mergeDialogId != 0 && !endReached[1])) {
+                    // LuminaGram #22 paging: spaced out after hidden pages; luminaPagingRetry checks again
+                } else if (!endReached[0]) {
                     loading = true;
                     waitingForLoad.add(lastLoadIndex);
-                    if (messagesByDays.size() != 0) {
+                    if (messagesByDays.size() != 0 || luminaOlderCursor.usable(maxMessageId[0])) { // LuminaGram #22 paging: continue below hidden pages
                         getMessagesController().loadMessages(dialog_id, mergeDialogId, false, 50, maxMessageId[0], 0, !cacheEndReached[0], minDate[0], classGuid, 0, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
                     } else {
                         getMessagesController().loadMessages(dialog_id, mergeDialogId, false, 50, 0, 0, !cacheEndReached[0], minDate[0], classGuid, 0, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
@@ -14664,17 +14679,86 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
             if (visibleItemCountFinal > 0 && !loadingForward && firstVisibleItemFinal <= 10) {
-                if (mergeDialogId != 0 && !forwardEndReached[1]) {
+                if (luminaPagingDeferred(true, mergeDialogId != 0 && !forwardEndReached[1] || !forwardEndReached[0])) {
+                    // LuminaGram #22 paging: spaced out after hidden pages; luminaPagingRetry checks again
+                } else if (mergeDialogId != 0 && !forwardEndReached[1]) {
                     waitingForLoad.add(lastLoadIndex);
-                    getMessagesController().loadMessages(mergeDialogId, 0, false, 50, minMessageId[1], 0, true, maxDate[1], classGuid, 1, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
+                    // LuminaGram #22 paging: the newer cursor skips hidden messages (minMessageId/maxDate stay upstream)
+                    getMessagesController().loadMessages(mergeDialogId, 0, false, 50, luminaNewerCursor[1].id(minMessageId[1]), 0, true, luminaNewerCursor[1].date(minMessageId[1], maxDate[1]), classGuid, 1, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
                     loadingForward = true;
                 } else if (!forwardEndReached[0]) {
                     waitingForLoad.add(lastLoadIndex);
-                    getMessagesController().loadMessages(dialog_id, mergeDialogId, false, 50, minMessageId[0], 0, true, maxDate[0], classGuid, 1, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
+                    getMessagesController().loadMessages(dialog_id, mergeDialogId, false, 50, luminaNewerCursor[0].id(minMessageId[0]), 0, true, luminaNewerCursor[0].date(minMessageId[0], maxDate[0]), classGuid, 1, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
                     loadingForward = true;
                 }
             }
         });
+    }
+
+    // LuminaGram #22 paging: after a run of fully hidden server pages (LuminaHistoryPaging.Throttle),
+    // requests in that direction go out THROTTLE_SPACING_MS apart. While a request waits, its direction
+    // is held busy exactly like an in-flight request (loading/loadingForward plus a reserved load index
+    // in waitingForLoad), so no second load starts and the empty-chat reloads in historyCleared /
+    // processDeletedMessages (which need !loading) cannot restart the chain meanwhile. One retry
+    // runnable at most; it releases the hold (unless a reset already cleared waitingForLoad and took the
+    // flag over) and runs the normal scroll check again. The hold is not a request, so no failed load can
+    // leave it behind. Returns true when the load was deferred.
+    private boolean luminaPagingDeferred(boolean newer, boolean wouldLoad) {
+        if (!wouldLoad) {
+            return false;
+        }
+        final LuminaHistoryPaging.Throttle throttle = newer ? luminaNewerThrottle : luminaOlderThrottle;
+        final long now = SystemClock.uptimeMillis();
+        final long wait = throttle.delayBeforeLoad(now);
+        if (wait <= 0) {
+            throttle.onLoadSent(now);
+            return false;
+        }
+        if (isFinished) {
+            return true; // chat closed: drop it, nothing more is requested
+        }
+        final int previousHeld = newer ? luminaNewerHeldIndex : luminaOlderHeldIndex;
+        if (previousHeld >= 0) {
+            waitingForLoad.remove(Integer.valueOf(previousHeld));
+        }
+        final int heldIndex = lastLoadIndex++;
+        waitingForLoad.add(heldIndex);
+        if (newer) {
+            loadingForward = true;
+            luminaNewerHeldIndex = heldIndex;
+        } else {
+            loading = true;
+            luminaOlderHeldIndex = heldIndex;
+        }
+        final long delay = luminaPagingRetrySlot.request(now, wait);
+        if (delay >= 0) {
+            AndroidUtilities.cancelRunOnUIThread(luminaPagingRetry);
+            AndroidUtilities.runOnUIThread(luminaPagingRetry, delay);
+        }
+        if (BuildVars.LOGS_ENABLED) {
+            FileLog.d("lumina filter paging wait " + wait + "ms " + (newer ? "newer" : "older"));
+        }
+        return true;
+    }
+
+    private void luminaPagingRetryNow() {
+        luminaPagingRetrySlot.clear();
+        if (isFinished) {
+            return;
+        }
+        if (luminaOlderHeldIndex >= 0) {
+            if (waitingForLoad.remove(Integer.valueOf(luminaOlderHeldIndex))) {
+                loading = false;
+            }
+            luminaOlderHeldIndex = -1;
+        }
+        if (luminaNewerHeldIndex >= 0) {
+            if (waitingForLoad.remove(Integer.valueOf(luminaNewerHeldIndex))) {
+                loadingForward = false;
+            }
+            luminaNewerHeldIndex = -1;
+        }
+        checkScrollForLoad(false);
     }
 
     private void processSelectedAttach(int which) {
@@ -21647,7 +21731,16 @@ public class ChatActivity extends BaseFragment implements
         ArrayList<MessageObject> messArr = (ArrayList<MessageObject>) args[2];
         // LuminaGram #22: drop keyword-filtered messages before the visible list is built
         // (pure client-side display filter). Default empty list = no-op.
-        LuminaConfig.filterMessages(messArr);
+        // LuminaGram #22 paging: same filter, but it also reports what it removed, so the end-of-history
+        // checks below use the unfiltered page size and the cursors move past hidden messages
+        // (luminaPage == null and luminaRemoved == 0 whenever nothing was hidden: upstream behaviour).
+        // Hashtag search pages are paged by HashtagSearchController and keep the plain filter.
+        final LuminaHistoryPaging.Page luminaFiltered = LuminaHistoryFilter.filterPage(messArr, currentEncryptedChat != null);
+        final LuminaHistoryPaging.Page luminaPage = chatMode == MODE_SEARCH ? null : luminaFiltered;
+        final int luminaRemoved = luminaPage != null ? luminaPage.removed() : 0;
+        if (BuildVars.LOGS_ENABLED && luminaPage != null) {
+            FileLog.d("lumina filter page " + luminaPage + " raw=" + (messArr.size() + luminaRemoved) + " count=" + args[1] + " cache=" + args[3] + " load_type=" + args[8]);
+        }
         layOutWidgetsForSideMenu(messArr);
 
         boolean universalNotify = false;
@@ -21706,7 +21799,7 @@ public class ChatActivity extends BaseFragment implements
         } else if (!doNotRemoveLoadIndex) {
             waitingForLoad.remove(index);
         }
-        if (messages.isEmpty() && messArr.size() == 1 && MessageObject.isSystemSignUp(messArr.get(0))) {
+        if (messages.isEmpty() && messArr.size() == 1 && luminaRemoved == 0 && MessageObject.isSystemSignUp(messArr.get(0))) { // LuminaGram #22 paging: unfiltered page size
             forceHistoryEmpty = true;
             endReached[0] = endReached[1] = true;
             forwardEndReached[0] = forwardEndReached[1] = true;
@@ -21815,7 +21908,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (postponedScroll) {
-            if (load_type == 0 && isCache && messArr.size() < count) {
+            if (load_type == 0 && isCache && messArr.size() + luminaRemoved < count) { // LuminaGram #22 paging: unfiltered page size
                 postponedScrollToLastMessageQueryIndex = lastLoadIndex;
                 waitingForLoad.add(lastLoadIndex);
                 getMessagesController().loadMessages(dialog_id, mergeDialogId, false, count, 0, 0, false, 0, classGuid, 0, 0, chatMode, threadMessageId, replyMaxReadId, lastLoadIndex++, isTopic);
@@ -21995,6 +22088,14 @@ public class ChatActivity extends BaseFragment implements
                     beforMax++;
                 }
             }
+            if (luminaPage != null) { // LuminaGram #22 paging: count hidden messages like upstream would
+                final int luminaBefore = luminaPage.countAtOrBelow(loaded_max_id);
+                beforMax += luminaBefore;
+                afterMax += luminaRemoved - luminaBefore;
+                if (luminaPage.contains(loaded_max_id)) {
+                    hasMaxId = true;
+                }
+            }
             int num;
             if (load_type == 2) {
                 num = 10;
@@ -22047,7 +22148,7 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
-        if (!isTopic && !threadMessageAdded && isThreadChat() && (load_type == 0 && messArr.size() < count || (load_type == 2 || load_type == 3) && endReached[0])) {
+        if (!isTopic && !threadMessageAdded && isThreadChat() && (load_type == 0 && messArr.size() + luminaRemoved < count || (load_type == 2 || load_type == 3) && endReached[0])) { // LuminaGram #22 paging: unfiltered page size
             TLRPC.Message msg = new TLRPC.TL_message();
             if (threadMessageObject.getRepliesCount() == 0) {
                 if (isComments) {
@@ -22080,7 +22181,7 @@ public class ChatActivity extends BaseFragment implements
             getMediaDataController().loadReplyMessagesForMessages(messArr, dialog_id, chatMode, 0, null, classGuid, null);
         }
         int approximateHeightSum = 0;
-        if (!chatWasReset && (load_type == 2 || load_type == 1) && messArr.isEmpty() && !isCache) {
+        if (!chatWasReset && (load_type == 2 || load_type == 1) && messArr.isEmpty() && luminaRemoved == 0 && !isCache) { // LuminaGram #22 paging: a fully hidden page is not an empty one
             forwardEndReached[0] = true;
         }
         LongSparseArray<MessageObject.GroupedMessages> newGroups = null;
@@ -22478,6 +22579,28 @@ public class ChatActivity extends BaseFragment implements
                 newRowsCount++;
             }
         }
+        // LuminaGram #22 paging: count the hidden messages the way the loop above counts visible ones.
+        // The older cursor and minDate only feed requests, so they move past hidden messages directly.
+        // The newer side gets its own cursor: minMessageId/maxDate also drive read receipts and stay upstream.
+        if (luminaPage != null) {
+            final int luminaOlder = luminaPage.olderCursor(maxMessageId[loadIndex]);
+            if (luminaOlder != maxMessageId[loadIndex]) {
+                maxMessageId[loadIndex] = luminaOlder;
+                if (loadIndex == 0) {
+                    luminaOlderCursor.record(luminaOlder);
+                }
+            }
+            minDate[loadIndex] = luminaPage.olderDate(minDate[loadIndex]);
+            luminaNewerCursor[loadIndex].record(luminaPage, minMessageId[loadIndex], maxDate[loadIndex], currentEncryptedChat == null ? Integer.MIN_VALUE : Integer.MAX_VALUE);
+            if (loadIndex == 0 && ChatObject.isChannel(currentChat) && luminaPage.contains(1)) {
+                endReached[loadIndex] = true;
+                cacheEndReached[loadIndex] = true;
+            }
+            if (!chatWasReset && last_message_id != 0 && luminaPage.contains(last_message_id)) {
+                forwardEndReached[loadIndex] = true;
+            }
+        }
+        (load_type == 1 ? luminaNewerThrottle : luminaOlderThrottle).onPageLoaded(!isCache, luminaRemoved, newRowsCount); // LuminaGram #22 paging
         checkGroupMessagesOrder();
         if (createUnreadLoading) {
             createUnreadMessageAfterId = 0;
@@ -22492,8 +22615,9 @@ public class ChatActivity extends BaseFragment implements
             createUnreadMessageAfterId = 0;
         }
 
+        boolean luminaKeepSpinner = false; // LuminaGram #22 paging
         if (load_type == 1) {
-            if (!chatWasReset && messArr.size() != count && (!isCache || currentEncryptedChat != null || forwardEndReached[loadIndex])) {
+            if (!chatWasReset && messArr.size() + luminaRemoved != count && (!isCache || currentEncryptedChat != null || forwardEndReached[loadIndex])) { // LuminaGram #22 paging: unfiltered page size
                 forwardEndReached[loadIndex] = true;
                 if (loadIndex != 1) {
                     first_unread_id = 0;
@@ -22534,7 +22658,7 @@ public class ChatActivity extends BaseFragment implements
             }
             loadingForward = false;
         } else {
-            if (messArr.size() < count && load_type != 3 && load_type != 4) {
+            if (messArr.size() + luminaRemoved < count && load_type != 3 && load_type != 4) { // LuminaGram #22 paging: unfiltered page size
                 if (isCache) {
                     if (currentEncryptedChat != null || loadIndex == 1 && mergeDialogId != 0 && isEnd) {
                         endReached[loadIndex] = true;
@@ -22542,10 +22666,13 @@ public class ChatActivity extends BaseFragment implements
                     if (load_type != 2) {
                         cacheEndReached[loadIndex] = true;
                     }
-                } else if (load_type != 2 || messArr.size() == 0 && messages.isEmpty()) {
+                } else if (load_type != 2 || messArr.size() + luminaRemoved == 0 && messages.isEmpty()) {
                     endReached[loadIndex] = true;
                 }
             }
+            // LuminaGram #22 paging: everything loaded so far is hidden but there is more history: keep
+            // the progress state instead of the empty chat (or bot start) screen while paging continues.
+            luminaKeepSpinner = luminaRemoved > 0 && newRowsCount == 0 && messages.isEmpty() && !endReached[loadIndex];
             loading = false;
             if (onChatMessagesLoaded != null) {
                 onChatMessagesLoaded.run();
@@ -22681,7 +22808,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
-                if (first) {
+                if (first && !luminaKeepSpinner) { // LuminaGram #22 paging
                     if (chatListView != null) {
                         AndroidUtilities.runOnUIThread(() -> {
                             createEmptyView(false);
@@ -22748,12 +22875,12 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         }
-        if (messages.isEmpty() && currentEncryptedChat == null && currentUser != null && currentUser.bot && botUser == null && !UserObject.isBotForum(currentUser)) {
+        if (messages.isEmpty() && !luminaKeepSpinner && currentEncryptedChat == null && currentUser != null && currentUser.bot && botUser == null && !UserObject.isBotForum(currentUser)) { // LuminaGram #22 paging
             botUser = "";
             updateBottomOverlay();
         }
 
-        if (newRowsCount == 0 && (mergeDialogId != 0 && loadIndex == 0 || currentEncryptedChat != null && !endReached[0])) {
+        if (newRowsCount == 0 && (mergeDialogId != 0 && loadIndex == 0 || currentEncryptedChat != null && !endReached[0] || luminaKeepSpinner)) { // LuminaGram #22 paging
             first = true;
             if (chatListView != null) {
                 chatListView.setEmptyView(null);
