@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.LuminaConfig;
 import org.telegram.messenger.LuminaDecoy;
+import org.telegram.messenger.LuminaDisguiseController;
 import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
 import org.telegram.messenger.R;
@@ -56,6 +57,9 @@ public class LuminaNotepadActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Recents label/icon + window title follow the active camouflage icon, never
+        // "LuminaGram" (no-op while no camouflage icon is active).
+        LuminaDisguiseController.applyTaskIdentity(this);
 
         // FAIL-OPEN: building the decoy UI must never brick the app. If anything here throws
         // (theme/OEM quirk, pre-init state), fail OPEN into the real app rather than leaving

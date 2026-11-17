@@ -12,6 +12,7 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LuminaConfig;
+import org.telegram.messenger.LuminaDecoy;
 import org.telegram.messenger.LuminaDisguiseController;
 import org.telegram.messenger.LuminaDuress;
 import org.telegram.messenger.LuminaLocale;
@@ -407,6 +408,9 @@ public class LuminaDisguiseActivity extends BaseFragment {
         if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
+        // Every setting change on this page ends here: arm / disarm the vault's Recents privacy
+        // right away instead of on the next resume (Android 13+; see LuminaDecoy).
+        LuminaDecoy.applyRecentsPrivacy(getParentActivity());
     }
 
     /** Pick the vault mode. Any vault change migrates a legacy user and turns the vault on. */

@@ -71,6 +71,16 @@ public final class LuminaDecoy {
         if (unlocked) {
             return false;
         }
+        return isConfigured();
+    }
+
+    /**
+     * Whether the vault (or the legacy calculator lock) is armed at all — enabled with a
+     * non-empty code — regardless of whether this process has been unlocked yet. This is
+     * {@link #shouldGate(Context)} without the per-process {@link #unlocked} check. Fail-open:
+     * any error returns false.
+     */
+    public static boolean isConfigured() {
         try {
             boolean vaultEnabled = LuminaConfig.getBoolean(KEY_VAULT_ENABLED, false);
             boolean legacyEnabled = LuminaConfig.getBoolean(KEY_ENABLED, false);
@@ -84,6 +94,38 @@ public final class LuminaDecoy {
             return false;
         }
     }
+
+    /**
+     * Keep the real app out of the Recents screen while the vault is armed (Android 13+).
+     *
+     * The vault promises that the real app is only shown after the code. But the system keeps
+     * a screenshot of the last thing on screen for the Recents card and, when the task is
+     * brought back from Recents, as the window shown while the app comes back; after an
+     * unlocked session that screenshot is the real chat list. With recents screenshots
+     * disabled the system uses a plain placeholder built from the window background instead.
+     * Screenshots taken by the user inside the app are not affected. Called from
+     * LaunchActivity.onResume and whenever a vault setting changes; re-enables screenshots as
+     * soon as the vault is off. Users who never arm the vault never get any call at all.
+     * Android 12L and older have no public equivalent; there the Recents card keeps the last
+     * screenshot as before. Never throws.
+     */
+    public static void applyRecentsPrivacy(android.app.Activity activity) {
+        if (activity == null || android.os.Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+        try {
+            if (isConfigured()) {
+                activity.setRecentsScreenshotEnabled(false);
+                recentsPrivacyUsed = true;
+            } else if (recentsPrivacyUsed) {
+                activity.setRecentsScreenshotEnabled(true);
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** True once this process has disabled recents screenshots, so turning the vault off restores them. */
+    private static volatile boolean recentsPrivacyUsed = false;
 
     /**
      * How the vault should present. When the unified vault is enabled, this returns the
